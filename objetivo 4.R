@@ -4,7 +4,7 @@ library(tidyr)
 library(recommenderlab)
 library(recosystem)
 
-# --- CARGAR DATOS ---
+
 maestrostr <- readRDS("Datos/Originales/maestroestr.RDS")
 objetivos <- readRDS("Datos/Originales/objetivos.RDS")
 tickets_enc <- readRDS("Datos/Originales/tickets_enc.RDS")
