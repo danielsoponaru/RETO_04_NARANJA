@@ -7,9 +7,9 @@ library(ggplot2)
 library(shiny)
 
 #Cargar datos
-maestroestr<-readRDS("Datos/maestroestr.RDS")
-objetivos<-readRDS("Datos/objetivos.RDS")
-tickets_enc<-readRDS("Datos/tickets_enc.RDS")
+maestroestr<-readRDS("maestroestr.RDS")
+objetivos<-readRDS("objetivos.RDS")
+tickets_enc<-readRDS("tickets_enc.RDS")
 
 maestroestr #codigos de productos
 tickets_enc #productos que ha adquirido cada cliente
