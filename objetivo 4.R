@@ -1,7 +1,5 @@
 #### PRIMER TEST ####
 
-
-
 library(dplyr)
 library(tidyr)
 library(recommenderlab)
@@ -499,4 +497,124 @@ cat("\n--- Recomendaciones ALS ---\n")
 print(recomendaciones_als[, c("cliente", "producto_recomendado", "descripcion")])
 
 
+#### TEST 5 ####
+
+# ---------------------------
+# 🔵 Librerías
+# ---------------------------
+library(dplyr)
+library(tidyr)
+library(recosystem)
+
+# ---------------------------
+# 🔵 Cargar datos
+# ---------------------------
+maestrostr <- readRDS("maestroestr.RDS")
+objetivos <- readRDS("objetivos.RDS")
+tickets_enc <- readRDS("tickets_enc.RDS")
+
+clientes_obj <- objetivos$objetivo4$obj
+
+# ---------------------------
+# 🔵 Obtener última compra por cliente objetivo
+# ---------------------------
+ultimas_compras <- tickets_enc %>%
+  filter(id_cliente_enc %in% clientes_obj) %>%
+  group_by(id_cliente_enc) %>%
+  filter(dia == max(dia)) %>%
+  summarise(cesta_ultima = list(unique(cod_est)), .groups = "drop")
+
+# ---------------------------
+# 🔵 Excluir última compra para entrenamiento
+# ---------------------------
+tickets_entrenamiento <- tickets_enc %>%
+  filter(!(id_cliente_enc %in% clientes_obj & dia == max(dia[tickets_enc$id_cliente_enc %in% clientes_obj])))
+
+# ---------------------------
+# 🔵 Reducción de dimensionalidad
+# Mantener ~50% de productos más comprados + clientes objetivo
+# ---------------------------
+# Contar productos y filtrar top 50%
+top_productos <- tickets_entrenamiento %>%
+  count(cod_est) %>%
+  arrange(desc(n)) %>%
+  slice_head(n = floor(n() * 0.5)) %>%
+  pull(cod_est)
+
+# Contar clientes activos + mantener los objetivos
+top_clientes <- tickets_entrenamiento %>%
+  count(id_cliente_enc) %>%
+  arrange(desc(n)) %>%
+  slice_head(n = floor(n() * 0.5)) %>%
+  pull(id_cliente_enc)
+
+clientes_finales <- union(top_clientes, clientes_obj)
+
+# ---------------------------
+# 🔵 Filtrar datos reducidos
+# ---------------------------
+train_data <- tickets_entrenamiento %>%
+  filter(id_cliente_enc %in% clientes_finales, cod_est %in% top_productos)
+
+# Convertir a formato largo: user, item, rating (conteo)
+rating_matrix <- train_data %>%
+  count(id_cliente_enc, cod_est, name = "rating") %>%
+  rename(user = id_cliente_enc, item = cod_est)
+
+# ---------------------------
+# 🔵 Entrenar modelo WRMF con recosystem
+# ---------------------------
+train_file <- tempfile()
+write.table(rating_matrix, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
+
+reco <- Reco()
+reco$train(data_file(train_file), opts = list(dim = 50, niter = 30, costp_l2 = 0.1, costq_l2 = 0.1))
+
+# ---------------------------
+# 🔵 Generar recomendaciones personalizadas
+# ---------------------------
+# Preparar combinaciones usuario-producto posibles
+productos_validos <- unique(rating_matrix$item)
+
+combinaciones <- expand.grid(user = clientes_obj, item = productos_validos) %>%
+  mutate(user = as.character(user), item = as.character(item))
+
+# Predecir puntuaciones
+test_file <- tempfile()
+write.table(combinaciones, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
+
+pred_file <- tempfile()
+reco$predict(data_file(test_file), out_file(pred_file))
+combinaciones$score <- scan(pred_file)
+
+# ---------------------------
+# 🔵 Filtrar productos ya comprados en la última compra
+# ---------------------------
+ult_compras_df <- ultimas_compras %>% rename(user = id_cliente_enc)
+
+recomendaciones_filtradas <- combinaciones %>%
+  left_join(ult_compras_df, by = "user") %>%
+  rowwise() %>%
+  filter(!(item %in% cesta_ultima)) %>%
+  ungroup()
+
+# ---------------------------
+# 🔵 Obtener la mejor recomendación por cliente
+# ---------------------------
+recomendaciones_final <- recomendaciones_filtradas %>%
+  group_by(user) %>%
+  slice_max(score, n = 1, with_ties = FALSE) %>%
+  rename(cliente = user, producto_recomendado = item) %>%
+  left_join(maestrostr, by = c("producto_recomendado" = "cod_est"))
+
+# ---------------------------
+# 🔵 Limpiar archivos temporales
+# ---------------------------
+file.remove(train_file, test_file, pred_file)
+
+# ---------------------------
+# 🔵 Mostrar recomendaciones
+# ---------------------------
+cat("\n--- Recomendaciones personalizadas (ALS) ---\n")
+print(recomendaciones_final[, c("cliente", "producto_recomendado", "descripcion")])
 
