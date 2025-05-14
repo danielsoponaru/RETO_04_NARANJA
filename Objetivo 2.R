@@ -25,10 +25,10 @@ library(Matrix)
 library(dplyr)
 
 #1. Cargar datos
-data<- readRDS("Datos//Transformados//matriz.RDS")
-objetivos<- readRDS("Datos//Originales//objetivos.RDS")
+data<- readRDS("matriz.RDS")
+objetivos<- readRDS("objetivos.RDS")
 clientes_objetivo<- objetivos$objetivo2$obj
-productos<- readRDS("Datos//Originales//maestroestr.RDS")
+productos<- readRDS("maestroestr.RDS")
 
 #2. Examinar datos y tipos de columnas
 str(data)

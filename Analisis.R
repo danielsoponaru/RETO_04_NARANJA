@@ -1,7 +1,5 @@
 ### ANALISIS EXPLORATORIO RETO 4 ###
 
-##
-
 #Cargar librarias necesarias
 library(dplyr)
 library(lubridate)
