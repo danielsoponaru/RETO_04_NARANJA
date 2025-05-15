@@ -1,8 +1,6 @@
-# Script: clusterizacion_y_recomendacion_revisado.R
-
-# ===============================
-# 1. Librerías necesarias
-# ===============================
+  #===============================
+  # 1. Librerías necesarias
+  # ===============================
 library(lubridate)
 library(dplyr)
 library(naniar)
@@ -10,13 +8,14 @@ library(tidyr)
 library(ggplot2)
 library(cluster)
 library(recosystem)
+library(purrr)
 
 # ===============================
 # 2. Carga y preprocesamiento de datos
 # ===============================
-maestrostr <- readRDS("Datos/Originales/maestroestr.RDS")
-objetivos  <- readRDS("Datos/Originales/objetivos.RDS")
-tickets_enc <- readRDS("Datos/Originales/tickets_enc.RDS")
+maestrostr <- readRDS("maestroestr.RDS")
+objetivos  <- readRDS("objetivos.RDS")
+tickets_enc <- readRDS("tickets_enc.RDS")
 
 # Formateo inicial
 tickets_enc <- tickets_enc %>%
@@ -109,12 +108,12 @@ ggplot(datos_sin_outliers, aes(x = pca1, y = pca2, color = kmeans_cluster)) +
 # 6. Guardar asignación de clusters
 # ===============================
 clientes_clusterizados <- datos_sin_outliers %>% select(id_cliente_enc, kmeans_cluster)
-saveRDS(clientes_clusterizados, "Datos/clientes_clusterizados.RDS")
+saveRDS(clientes_clusterizados, "clientes_clusterizados.RDS")
 
 # ===============================
 # 7. Crear matriz unificada con clusters
 # ===============================
-matriz_base <- readRDS("Datos/Transformados/matriz.RDS")
+matriz_base <- readRDS("matriz.RDS")
 matriz_df   <- matriz_base %>%
   as.data.frame() %>%
   mutate(id_cliente_enc = rownames(.))
@@ -123,5 +122,4 @@ matriz_con_cluster <- matriz_df %>%
   inner_join(clientes_clusterizados, by = "id_cliente_enc") %>%
   select(id_cliente_enc, kmeans_cluster, everything())
 
-saveRDS(matriz_con_cluster, "Datos/matriz_con_cluster.RDS")
-
+saveRDS(matriz_con_cluster, "matriz_con_cluster.RDS")

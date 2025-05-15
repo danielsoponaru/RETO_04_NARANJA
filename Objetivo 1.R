@@ -1,73 +1,99 @@
+library(stringr)
+library(rsparse)
+library(recommenderlab)
+library(dplyr)
+library(lubridate)
+library(tidyr)
 
-# ===============================
-# 8. Objetivo 1: Recomendación ALS por clúster
-# ===============================
-producto_promocionado <- "14351005"  # ID sin prefijo
-col_prefijo <- paste0("X", producto_promocionado)
+objetivos <- readRDS("objetivos.RDS")
+matriz_final <- readRDS("matriz.rds")
+maestro <- readRDS("maestroestr.RDS")
+tickets <- readRDS("tickets_enc.RDS")
 
-# Leer matriz unificada
-df_mat <- readRDS("Datos/matriz_con_cluster.RDS")
-res_list <- list()
+matriz <- as(matriz_final, "matrix")
+matriz[is.na(matriz)] <- 0
+saveRDS(matriz, "matriz.rds")
+matriz <- readRDS("matriz.rds")
 
-for (cl in unique(df_mat$kmeans_cluster)) {
-  cat("Procesando", cl, "...\n")
-  df_k <- df_mat %>% filter(kmeans_cluster == cl)
-  
-  # Verificar existencia de columna de producto
-  if (!(col_prefijo %in% colnames(df_k))) {
-    cat("Producto no presente en", cl, "- saltando.\n")
-    next
-  }
-  
-  # Preparar datos para recosystem
-  df_train <- df_k %>%
-    select(id_cliente_enc, starts_with("X")) %>%
-    pivot_longer(-id_cliente_enc, names_to = "producto", values_to = "valor") %>%
-    filter(valor > 0) %>%
-    mutate(producto = gsub("^X", "", producto))
-  
-  if (nrow(df_train) < 2) {
-    cat("Datos insuficientes en", cl, "- saltando entrenamiento.\n")
-    next
-  }
-  
-  train_file <- paste0("datos_train_", cl, ".txt")
-  write.table(df_train, train_file, sep = " ", row.names = FALSE, col.names = FALSE, quote = FALSE)
-  
-  # Entrenar ALS
-  r <- Reco()
-  train_set <- data_file(train_file)
-  opts <- r$tune(train_set)
-  r$train(train_set, opts = opts)
-  
-  # Predicción para clientes que no compraron el producto
-  clientes_no <- df_k %>% filter(.data[[col_prefijo]] == 0) %>% pull(id_cliente_enc)
-  if (length(clientes_no) == 0) next
-  
-  df_pred <- data.frame(
-    id_cliente_enc = clientes_no,
-    producto       = producto_promocionado
-  )
-  pred_file <- paste0("datos_pred_", cl, ".txt")
-  write.table(df_pred, pred_file, sep = " ", row.names = FALSE, col.names = FALSE, quote = FALSE)
-  
-  out_file <- paste0("predicciones_", cl, ".txt")
-  r$predict(data_file(pred_file), out_file(out_file))
-  scores <- scan(out_file)
-  df_pred <- df_pred %>% mutate(score = scores, kmeans_cluster = cl)
-  
-  res_list[[cl]] <- df_pred
-}
 
-# ===============================
-# 9. Unir y guardar recomendaciones
-# ===============================
-res_valid <- res_list[!sapply(res_list, is.null)]
-if (length(res_valid) > 0) {
-  recomendaciones <- bind_rows(res_valid) %>% arrange(desc(score))
-  saveRDS(recomendaciones, "Datos/recomendaciones_14351005_ALS_por_cluster.RDS")
-  print(head(recomendaciones, 10))
-  print(recomendaciones %>% count(kmeans_cluster))
-} else {
-  message("No se generaron recomendaciones para ningún cluster.")
-}
+############################### RECOMENDACIONES ################################
+#Estadisticos e histogramas a nivel usuario/item
+ max(matriz, na.rm = T); min(matriz, na.rm = T)
+ 
+ rmeans <- rowMeans(matriz_final)
+ cmeans <- colMeans(matriz_final)
+ 
+ rcounts <- rowCounts(matriz_final)
+ ccounts <- colCounts(matriz_final)
+ 
+ hist(rmeans)
+ hist(cmeans)
+ hist(rcounts)
+ hist(ccounts)
+ 
+ min(rcounts)
+ set.seed(12); e <- evaluationScheme(matriz_final, method = "split", train = 0.8, 
+                                     given = 11, goodRating = 1)
+
+algos <- list("random" = list(name = "RANDOM", param = NULL),
+               "ReRecommend" = list(name = "RERECOMMEND", param= NULL),
+               "UBCF_10nn" = list(name = "UBCF", param = list(nn = 10)), # (nn --> Number of Neighbours)
+               "UBCF_50nn" = list(name = "UBCF", param = list(nn = 50)),
+              "IBCF_Pearson" = list(name = "IBCF", param = list(method = "Pearson")),
+               "SVDF_k50" = list(name = "SVDF",  param = list(k = 50)), # k --> Nº Factores Latentes
+               "SVDF_k100" = list(name = "SVDF",  param = list(k = 100)),
+               "SVDF_k200" = list(name = "SVDF",  param = list(k = 200)))
+
+#Realizar predicciones --> ratings / topNList
+algos
+eval_topN <- evaluate(e, algos, type = "topNList", n = c(1,3,5))
+plot(eval_topN,"prec/rec")
+getConfusionMatrix(eval_topN[["random"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_10nn"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_50nn"]])[[1]]
+getConfusionMatrix(eval_topN[["IBCF_Pearson"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k50"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k100"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k200"]])[[1]]
+
+eval_ratings <- evaluate(e, algos, type = "ratings", n = c(1,3,5))
+plot(eval_ratings,"prec/rec")s
+getConfusionMatrix(eval_topN[["random"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_10nn"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_50nn"]])[[1]]
+getConfusionMatrix(eval_topN[["IBCF_Pearson"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k50"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k100"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k200"]])[[1]]
+
+# Creamos el modelo WRMF -------------------------------------------------------
+modelo_wrmf <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
+modelo_wrmf$fit_transform(matriz, n_iter = 1000L, convergence_tol=0.000001)
+# #-------------------------------------------------------------------------------
+#Predecir producto que le falta en la compra
+prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
+mo1 <- matriz
+mo1[, !(colnames(mo1) %in% prod_objetivo1)] <- 0
+mo1 <- as(mo1, "sparseMatrix")
+mo1 <- matriz[,str_extract(colnames(matriz), "\\d+") %in% objetivos$objetivo1$obj, drop = F]
+preds_o1 <- modelo_wrmf$predict(mo1, k = 10, not_recommend = NULL)
+preds_o1
+attr(preds_o1,'ids')
+
+
+
+
+# OBJETIVO 1
+prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
+tmatriz <- t(matriz)
+#tmatriz <- as(tmatriz, "sparseMatrix")
+
+modelo_wrmf_clientes <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
+modelo_wrmf_clientes$fit_transform(tmatriz, n_iter = 1000L, convergence_tol=0.000001)
+
+mo1 <- tmatriz[rownames(tmatriz) %in% prod_objetivo1, , drop = F]
+mo1 <- as(mo1, "sparseMatrix")
+
+preds_o1 <- modelo_wrmf_clientes$predict(mo1, k = 10)
+preds_o1
+attr(preds_o1,'ids')
