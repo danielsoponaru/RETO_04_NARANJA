@@ -5,16 +5,22 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(shiny)
+library(tidyr)
+library(GGally)
+library(lubridate)
+library(readr)
 
 #Cargar datos
-maestroestr<-readRDS("maestroestr.RDS")
-objetivos<-readRDS("objetivos.RDS")
-tickets_enc<-readRDS("tickets_enc.RDS")
+maestroestr<- readRDS("maestroestr.RDS")
+objetivos<- readRDS("objetivos.RDS")
+tickets_enc<- readRDS("tickets_enc.RDS")
 clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
+matriz<- readRDS("matriz.RDS")
 
 maestroestr #codigos de productos
 tickets_enc #productos que ha adquirido cada cliente
 clientes_clusterizados #cluster al que pertenece cada cliente
+matriz #matriz de recomendaciones
 
 options(scipen = 999)
 
@@ -40,8 +46,30 @@ maestroestr$cod_est<- as.numeric(maestroestr$cod_est)
 #Comprobar
 str(tickets_enc) #todos los tipos de columnas son correctos
 
+#Preprocesamiento de tickets
+tickets_enc <- tickets_enc %>%
+  mutate(
+    num_ticket = as.character(num_ticket),
+    dia = ymd(dia),
+    num_ticket = paste(num_ticket, id_cliente_enc),
+    DiaSemana = wday(dia, week_start = 1)
+  )
+
+#Agregar las variables de comportamiento por cliente
+datos_clientes <- tickets_enc %>%
+  group_by(id_cliente_enc) %>%
+  summarise(
+    total_productos        = n(),
+    productos_distintos    = n_distinct(cod_est),
+    dias_activos           = as.numeric(max(dia) - min(dia)),
+    compras_por_semana     = ifelse(dias_activos > 0, n() / (dias_activos / 7), n()),
+    compras_entre_semana   = sum(DiaSemana %in% 1:5),
+    compras_fin_de_semana  = sum(DiaSemana %in% 6:7)
+  ) %>%
+  ungroup()
+
 #Reconstruir matriz con clusters + variables
-matriz_df <- matriz_base %>%
+matriz_df <- matriz %>%
   as.data.frame() %>%
   mutate(id_cliente_enc = rownames(.))
 
@@ -49,6 +77,7 @@ matriz_df <- matriz_base %>%
 matriz_con_cluster <- matriz_df %>%
   inner_join(clientes_clusterizados, by = "id_cliente_enc") %>%
   left_join(datos_clientes, by = "id_cliente_enc")
+
 
 
 #Definir la ui
@@ -305,3 +334,4 @@ server<- server <- function(input, output, session) {
 
 #Ejecutar la app
 shinyApp(ui = ui, server = server)
+
