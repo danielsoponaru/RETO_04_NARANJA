@@ -45,10 +45,11 @@ summary(clientes_objetivo)
 matriz<- replace(data, is.na(data), 0)
 
 #Convierte a matriz sparseMatrix
-matriz_sparse<- as(as.matrix(matriz), "dgCMatrix")
+matriz_sparse<- as(as.matrix(matriz), "sparseMatrix")
 
 #4. Entrenar modelo ALS
-modelo_ALS<- WRMF$new(rank = 30, lambda = 0.1, feedback = "implicit") #poner 10L
+set.seed(7)
+modelo_ALS<- WRMF$new(rank = 10L, lambda = 0.1, feedback = "implicit") 
 modelo_ALS$fit_transform(matriz_sparse)
 
 #5. Obtener el índice (en que fila estan) de los clientes objetivo en la matriz
@@ -71,3 +72,34 @@ resultado_final<- merge(resultado,
                          all.x = TRUE)
 resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descripcion")]
 resultado_final
+
+
+#############
+
+scores_matrix <- modelo_ALS$predict(matriz_sparse[id_usuarios, , drop = FALSE], type = "score")
+
+resultados_con_score <- data.frame(cliente = clientes_objetivo,
+                                   producto_recomendado = character(length(clientes_objetivo)),
+                                   score = numeric(length(clientes_objetivo)),
+                                   stringsAsFactors = FALSE)
+
+for (i in seq_along(id_usuarios)) {
+  user_idx <- id_usuarios[i]
+  user_scores <- scores_matrix[i, ]
+  user_compras <- matriz_sparse[user_idx, ]
+  user_scores[user_compras > 0]<- -Inf
+  best_product_idx <- which.max(user_scores)
+  resultados_con_score$producto_recomendado[i] <- colnames(matriz_sparse)[best_product_idx]
+  resultados_con_score$score[i] <- user_scores[best_product_idx]
+}
+
+resultados_con_score$producto_recomendado <- sub("^X", "", resultados_con_score$producto_recomendado)
+
+resultado_final <- merge(resultados_con_score,
+                         productos,
+                         by.x = "producto_recomendado",
+                         by.y = "cod_est",
+                         all.x = TRUE)
+
+resultado_final <- resultado_final[, c("cliente", "producto_recomendado", "descripcion", "score")]
+str(scores_matrix)

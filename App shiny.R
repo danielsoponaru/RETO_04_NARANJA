@@ -26,16 +26,16 @@ options(scipen = 999)
 
 #Examinar datos y tipos de columnas
 str(maestroestr)
-str(tickets_enc)
-
-summary(maestroestr)
-summary(tickets_enc)
-
-colnames(maestroestr)
-colnames(tickets_enc)
-
 dim(maestroestr)
-dim(tickets_enc)
+
+str(objetivos)
+
+str(clientes_clusterizados)
+dim(clientes_clusterizados)
+
+str(tickets_enc)
+summary(tickets_enc)
+colnames(tickets_enc)
 
 #Ajustar tipos de columnas
 tickets_enc$dia<- ymd(tickets_enc$dia)
@@ -47,7 +47,7 @@ maestroestr$cod_est<- as.numeric(maestroestr$cod_est)
 str(tickets_enc) #todos los tipos de columnas son correctos
 
 #Preprocesamiento de tickets
-tickets_enc <- tickets_enc %>%
+tickets_enc<- tickets_enc %>%
   mutate(
     num_ticket = as.character(num_ticket),
     dia = ymd(dia),
@@ -56,7 +56,7 @@ tickets_enc <- tickets_enc %>%
   )
 
 #Agregar las variables de comportamiento por cliente
-datos_clientes <- tickets_enc %>%
+datos_clientes<- tickets_enc %>%
   group_by(id_cliente_enc) %>%
   summarise(
     total_productos        = n(),
@@ -69,7 +69,7 @@ datos_clientes <- tickets_enc %>%
   ungroup()
 
 #Reconstruir matriz con clusters + variables
-matriz_df <- matriz %>%
+matriz_df<- matriz %>%
   as.data.frame() %>%
   mutate(id_cliente_enc = rownames(.))
 
@@ -77,7 +77,6 @@ matriz_df <- matriz %>%
 matriz_con_cluster <- matriz_df %>%
   inner_join(clientes_clusterizados, by = "id_cliente_enc") %>%
   left_join(datos_clientes, by = "id_cliente_enc")
-
 
 
 #Definir la ui
@@ -126,7 +125,7 @@ ui<- fluidPage(
 
 
 #Server
-server<- server <- function(input, output, session) {
+server<- function(input, output, session) {
   
   #ANALISIS
   #Gráfico 1
@@ -331,6 +330,7 @@ server<- server <- function(input, output, session) {
     objetivos  # Supone que es un dataframe con los resultados a mostrar
   })
 }
+
 
 #Ejecutar la app
 shinyApp(ui = ui, server = server)
