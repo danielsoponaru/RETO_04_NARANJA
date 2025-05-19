@@ -1,96 +1,91 @@
-maestrostr <- readRDS("Datos/originales/maestroestr.RDS")
-objetivos <- readRDS("Datos/originales/objetivos.RDS")
-tickets_enc <- readRDS("Datos/originales/tickets_enc.RDS")
-matriz=readRDS("Datos/transformados/matriz.RDS")
+# Cargar librerías necesarias
+library(recommenderlab)
+library(rsparse)
+library(Matrix)
+library(dplyr)
 
-# Cargar librerías
-library(tidyverse)
-library(recosystem)
+# 1. Cargar datos
+data <- readRDS("matriz.RDS")
+objetivos <- readRDS("objetivos.RDS")
+clientes_objetivo <- objetivos$objetivo2$obj
+productos <- readRDS("maestroestr.RDS")
 
-# TRANSFORMACIÓN DE MATRIZ
-# -------------------------------------------
-# 1. Transponer la matriz (clientes = filas, productos = columnas)
-matriz_correcta <- t(matriz)
-
-# 2. Verificar nombres
-if (is.null(rownames(matriz_correcta)) | is.null(colnames(matriz_correcta))) {
-  stop("La matriz transpuesta no tiene nombres de fila o columna.")
-}
-
-# 3. Verificar si hay valores positivos
-if (sum(matriz_correcta > 0, na.rm = TRUE) == 0) {
-  stop("La matriz no contiene valores positivos.")
-}
-
-# 4. Convertir matriz a formato largo
-matriz_larga_check <- matriz_correcta %>%
-  as.data.frame() %>%
-  rownames_to_column("cliente") %>%
-  pivot_longer(-cliente, names_to = "producto", values_to = "rating")
-
-# 5. Verificar si hay suficientes datos tras filtrar ceros y NA
-matriz_larga <- matriz_larga_check %>%
-  filter(!is.na(rating) & rating > 0)
-
-if (nrow(matriz_larga) == 0) {
-  stop("No hay datos con rating > 0 para entrenar el modelo.")
-}
-
-# ENTRENAMIENTO DEL MODELO
-# -------------------------------------------
-# Guardar archivo temporal para entrenamiento
-train_file <- tempfile()
-write.table(matriz_larga, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-# Crear y entrenar modelo ALS
-r <- Reco()
-r$train(data_file(train_file), opts = list(dim = 20, costp_l2 = 0.1, costq_l2 = 0.1, nthread = 2, niter = 30))
-
-# RECOMENDACIONES
-# -------------------------------------------
-# Productos en promoción
-productos_promocion <- c(
-  "14351005", "12650103", "01027405", "05030101", "05030102", "01012310", "11040303",
-  "08230125", "01201505", "05040180", "01201005", "09070103", "04200505",
-  "01026410", "05040181", "04201005", "12670111", "08100903", "01013315", "01027205"
+#  Vector con los códigos de los 20 productos en oferta (reemplaza con los reales si hace falta)
+productos_en_oferta <- c("X12650103", "X01027405", "X05030101", "X05030102", "X01012310",
+                         "X11040303", "X08230125", "X01201505", "X05040180", "X01201005", "X09070103",
+                         "X04200505", "X01026410", "X05040181", "X04201005", "X12670111", "X08100903",
+                         "X01013315", "X01027205", "X12650101"
 )
 
-# Crear combinaciones cliente-producto
-clientes <- unique(matriz_larga$cliente)
-pred_data <- expand.grid(cliente = clientes, producto = productos_promocion)
+# 2. Preparar la matriz
+matriz <- replace(data, is.na(data), 0) 
+matriz[matriz > 10] <- 0
+matriz_dense <- as.matrix(matriz)
+matriz_sparse <- as(Matrix(matriz_dense, sparse = TRUE), "dgCMatrix")
 
-# Guardar archivo temporal para predicción
-test_file <- tempfile()
-write.table(pred_data, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
+# 3. Entrenar modelo ALS
+modelo_ALS <- WRMF$new(rank = 30, lambda = 0.1, feedback = "implicit")
+modelo_ALS$fit_transform(matriz_sparse)
 
-# Predecir scores
-output_file <- tempfile()
-r$predict(data_file(test_file), out_file(output_file))
-scores <- scan(output_file)
-pred_data$score <- scores
+# 4. Recomendaciones para todos los clientes
+id_usuarios <- 1:nrow(matriz)  # Todos los clientes
 
-# Obtener el mejor producto para cada cliente
-recomendaciones <- pred_data %>%
-  group_by(cliente) %>%
-  slice_max(order_by = score, n = 1, with_ties = FALSE)
+# 5. Predecir top 50 productos por cliente
+predicciones <- modelo_ALS$predict(matriz_sparse[id_usuarios, , drop = FALSE], k = 1)
 
-# Mostrar resultado
-print(recomendaciones)
+# 6. Filtrar predicciones solo a productos en oferta
+cols_oferta <- which(colnames(matriz) %in% productos_en_oferta)
 
+filtrar_oferta <- function(indices, cols_oferta) {
+  inter <- intersect(indices, cols_oferta)
+  if (length(inter) == 0) return(NA)
+  return(inter[1])
+}
 
+recomendaciones_filtradas <- sapply(predicciones, filtrar_oferta, cols_oferta = cols_oferta)
+productos_recomendados <- colnames(matriz)[recomendaciones_filtradas]
 
+# 7. Fallback: sorteo ponderado por popularidad
+popularidad <- colSums(matriz_sparse)[productos_en_oferta]
 
+set.seed(123)
+fallbacks <- sample(
+  productos_en_oferta,
+  sum(is.na(recomendaciones_filtradas)),
+  replace = TRUE,
+  prob = popularidad
+)
 
-# ¿Tiene filas la tabla?
-nrow(matriz_larga)
+# Convertir a nombres de producto
+productos_recomendados <- colnames(matriz)[recomendaciones_filtradas]
+productos_recomendados[is.na(productos_recomendados)] <- fallbacks
 
-# Mostrar las primeras filas (debería haber columnas: cliente, producto, rating)
-head(matriz_larga)
+# 8. Construir resultado final
+resultado <- data.frame(
+  cliente = rownames(matriz),
+  producto_recomendado = productos_recomendados
+)
 
-# Ver formato del archivo que se va a usar para entrenar
-train_file <- tempfile()
-write.table(matriz_larga, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE, quote = FALSE)
+# Limpieza de formatos
+resultado$producto_recomendado <- as.character(resultado$producto_recomendado)
+productos$cod_est <- as.character(productos$cod_est)
+resultado$producto_recomendado <- sub("^X", "", resultado$producto_recomendado)
+productos$cod_est <- sub("^X", "", productos$cod_est)
 
-# Revisa el contenido del archivo
-readLines(train_file, n = 10)
+# Merge para obtener descripción del producto
+resultado_final <- merge(resultado,
+                         productos,
+                         by.x = "producto_recomendado",
+                         by.y = "cod_est",
+                         all.x = TRUE)
 
+# Selección de columnas finales
+resultado_final <- resultado_final[, c("cliente", "producto_recomendado", "descripcion")]
+
+# Ver resumen de recomendaciones
+ct <- resultado_final %>%
+  group_by(descripcion) %>%
+  count()
+
+# Mostrar tabla resumen
+print(ct)
