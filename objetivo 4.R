@@ -1,502 +1,596 @@
-#### PRIMER TEST ####
+#### TEST 5 ####
 
-
-
+# ===========================================
+# 🔵 1. Librerías
+# ===========================================
 library(dplyr)
 library(tidyr)
-library(recommenderlab)
 library(recosystem)
 
+# ===========================================
+# 🔵 2. Cargar datos
+# ===========================================
+maestrostr   <- readRDS("maestroestr.RDS")
+objetivos    <- readRDS("objetivos.RDS")
+tickets_enc  <- readRDS("tickets_enc.RDS")
 
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
+clientes_obj <- objetivos$objetivo4$obj  
 
-tickets_enc <- tickets_enc %>%
-  left_join(maestrostr, by = "cod_est")
+# ===========================================
+# 🔵 3. Última compra de cada cliente objetivo
+# ===========================================
+ultimas_compras <- tickets_enc %>%
+  filter(id_cliente_enc %in% clientes_obj) %>%
+  group_by(id_cliente_enc) %>%
+  filter(dia == max(dia)) %>%               
+  summarise(cesta_ultima = list(unique(cod_est)), .groups = "drop")
 
-clientes_obj4 <- objetivos$objetivo4$obj
+# ===========================================
+# 🔵 4. Reducción de dimensionalidad
+#    –quedarse con ~50% de productos y clientes
+#    –sin perder a los clientes objetivo
+# ===========================================
+# Contar productos por frecuencia
+productos_conteo <- tickets_enc %>%
+  count(cod_est) %>%
+  arrange(desc(n))
 
-resumen <- tickets_enc %>%
-  count(id_cliente_enc, cod_est, name = "n_compras_producto")
+# Calcular la cantidad (50%) fuera del pipeline
+n_productos_50 <- floor(nrow(productos_conteo) * 0.5)
 
-t <- pivot_wider(resumen, names_from = "cod_est", values_from = "n_compras_producto") %>%
-  data.frame()
-rownames(t) <- t[, 1]
-t <- t[, -1]
-t_rec <- as(as.matrix(t), "realRatingMatrix")
+# Seleccionar top 50% de productos más comprados
+top_productos <- productos_conteo %>%
+  slice_head(n = n_productos_50) %>%
+  pull(cod_est)
 
-t_rec_filtered <- t_rec[
-  rowCounts(t_rec) > 23 | rownames(t_rec) %in% clientes_obj4, ]
-t_rec_filtered <- t_rec_filtered[
-  rowMeans(t_rec_filtered) > 1.0 | rownames(t_rec_filtered) %in% clientes_obj4, ]
-t_rec_filtered <- t_rec_filtered[, colCounts(t_rec_filtered) > 20]
+# Contar clientes por actividad
+clientes_conteo <- tickets_enc %>%
+  count(id_cliente_enc) %>%
+  arrange(desc(n))
 
-verif_clientes <- data.frame(
-  ID = clientes_obj4,
-  Presente = clientes_obj4 %in% rownames(t_rec_filtered)
+# Calcular cuántos conservar (50%)
+n_clientes_50 <- floor(nrow(clientes_conteo) * 0.5)
+
+# Seleccionar top 50% de clientes
+top_clientes <- clientes_conteo %>%
+  slice_head(n = n_clientes_50) %>%
+  pull(id_cliente_enc)
+
+clientes_finales <- union(top_clientes, clientes_obj)
+
+# 4.3 Dataset reducido
+train_data <- tickets_enc %>%
+  filter(id_cliente_enc %in% clientes_finales,
+         cod_est        %in% top_productos)
+
+# ===========================================
+# 🔵 5. Formato user–item–rating (frecuencia)
+# ===========================================
+rating_df <- train_data %>%
+  count(id_cliente_enc, cod_est, name = "rating") %>%
+  rename(user = id_cliente_enc,
+         item = cod_est)
+rating_df <- rating_df %>%
+  mutate(user = as.character(user),
+         item = as.character(item))
+
+# Crear matriz dispersa user-item
+rating_matrix_sparse <- sparseMatrix(
+  i = as.integer(factor(rating_df$user)),
+  j = as.integer(factor(rating_df$item)),
+  x = rating_df$rating,
+  dimnames = list(
+    user = levels(factor(rating_df$user)),
+    item = levels(factor(rating_df$item))
+  )
 )
-print("Verificación de clientes de objetivo 4:")
-print(verif_clientes)
 
-# --- ALS: ENTRENAMIENTO Y PREDICCIÓN PERSONALIZADA ---
+rating_df_for_recosystem <- summary(rating_matrix_sparse) %>%
+  mutate(user = rownames(rating_matrix_sparse)[i],
+         item = colnames(rating_matrix_sparse)[j]) %>%
+  select(user, item, x) %>%
+  rename(rating = x)
 
-mat <- as(t_rec_filtered, "matrix")
-ratings_df <- as.data.frame(as.table(mat)) %>%
-  filter(Freq > 0) %>%
-  rename(user = Var1, item = Var2, rating = Freq)
-
+# ===========================================
+# 🔵 6. Entrenar ALS (WRMF) con recosystem
+# ===========================================
+# Guardar en fichero SIN cabecera ni rownames
 train_file <- tempfile()
-write.table(ratings_df, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
+write.table(rating_df_for_recosystem, file = train_file,
+            sep = " ", row.names = FALSE, col.names = FALSE, quote = FALSE)
 
+# Entrenar ALS (WRMF) con recosystem
 reco <- Reco()
-reco$train(data_file(train_file), opts = list(dim = 30, niter = 30, costp_l2 = 0.1, costq_l2 = 0.1))
+reco$train(
+  data_file(train_file),
+  opts = list(dim = 30,               
+              niter = 30,             
+              costp_l2 = 0.1,         
+              costq_l2 = 0.1,         
+              verbose = FALSE))
+# ===========================================
+# 🔵 7. Predecir para los 10 clientes objetivo
+#    •No se podrá recomendar nada de su última compra
+# ===========================================
+productos_validos <- unique(rating_df$item)
 
-clientes <- clientes_obj4[clientes_obj4 %in% rownames(mat)]
-productos <- colnames(mat)
-combinaciones <- expand.grid(user = clientes, item = productos)
+candidates <- expand.grid(user = clientes_obj,
+                          item = productos_validos,
+                          KEEP.OUT.ATTRS = FALSE) %>%
+  mutate(user = as.character(user),
+         item = as.character(item))
 
 test_file <- tempfile()
-write.table(combinaciones, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
+write.table(candidates, file = test_file,
+            sep = " ", row.names = FALSE, col.names = FALSE)
 
 pred_file <- tempfile()
 reco$predict(data_file(test_file), out_file(pred_file))
-combinaciones$score <- scan(pred_file)
+candidates$score <- scan(pred_file)
 
-productos_comprados <- as(t_rec_filtered[clientes, ], "list")
-
-combinaciones_filtradas <- combinaciones %>%
+# ——— Filtrar productos comprados en la última compra
+candidates_clean <- candidates %>%
+  left_join(ultimas_compras %>% rename(user = id_cliente_enc),
+            by = "user") %>%
   rowwise() %>%
-  filter(!(item %in% productos_comprados[[user]])) %>%
+  filter(!(item %in% cesta_ultima)) %>%
   ungroup()
 
-recomendaciones_als <- combinaciones_filtradas %>%
+# ——— Top‑1 recomendación por cliente
+recomendaciones <- candidates_clean %>%
   group_by(user) %>%
   slice_max(score, n = 1, with_ties = FALSE) %>%
-  ungroup() %>%
-  rename(cliente = user, producto_recomendado = item)
+  rename(cliente = user,
+         cod_est = item) %>%
+  left_join(maestrostr, by = "cod_est") %>%
+  select(cliente, cod_est, descripcion, score)
 
-# --- AÑADIR DESCRIPCIÓN DEL PRODUCTO ---
-recomendaciones_als <- recomendaciones_als %>%
-  mutate(cod_est = gsub("^X", "", producto_recomendado)) %>%
-  left_join(maestrostr, by = "cod_est")
-
-write.csv(recomendaciones_als, "recomendaciones_objetivo4_als.csv", row.names = FALSE)
-saveRDS(recomendaciones_als, "recomendaciones_objetivo4_als.RDS")
-
+# ===========================================
+# 🔵 8. Limpiar temporales y mostrar resultado
+# ===========================================
 file.remove(train_file, test_file, pred_file)
 
-print("Recomendaciones ALS para Objetivo 4:")
-print(recomendaciones_als[, c("cliente", "producto_recomendado", "descripcion")])
+cat("\n=== Recomendaciones ALS (WRMF) –Objetivo 4 ===\n")
+print(recomendaciones, row.names = FALSE)
 
-
-
-
-
-
-
-
-
-
-# --- COMPARACIÓN CON IBCF ---
-
-# Entrenar modelo IBCF con método Pearson
-modelo_ibcf <- Recommender(t_rec_filtered, method = "IBCF", param = list(method = "Pearson"))
-
-# Predecir 1 ítem para los clientes del objetivo 4
-clientes_presentes <- clientes_obj4[clientes_obj4 %in% rownames(t_rec_filtered)]
-pred_ibcf <- predict(modelo_ibcf, newdata = t_rec_filtered[clientes_presentes, ], type = "topNList", n = 1)
-
-# Convertir a lista
-recom_ibcf <- as(pred_ibcf, "list")
-
-# Formatear
-df_ibcf <- data.frame(
-  cliente = names(recom_ibcf),
-  producto_recomendado_ibcf = sapply(recom_ibcf, function(x) ifelse(length(x) > 0, x[1], NA))
-)
-
-
-#### SEGUNDO TEST ####
+#### Basarse en ####
 
 library(dplyr)
-library(tidyr)
-library(recosystem)
-
-# --- Cargar datos ---
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
-
-clientes_obj4 <- objetivos$objetivo4$obj
-
-# --- Crear matriz cliente-producto ---
-resumen <- tickets_enc %>%
-  count(id_cliente_enc, cod_est, name = "n_compras_producto")
-
-t <- pivot_wider(resumen, names_from = "cod_est", values_from = "n_compras_producto") %>%
-  data.frame()
-rownames(t) <- t[, 1]
-t <- t[, -1]
-
-# --- Crear realRatingMatrix ---
-library(recommenderlab)
-t_rec <- as(as.matrix(t), "realRatingMatrix")
-
-# --- Filtrar clientes y productos más relevantes ---
-t_rec_filtered <- t_rec[
-  rowCounts(t_rec) > 23 | rownames(t_rec) %in% clientes_obj4, ]
-t_rec_filtered <- t_rec_filtered[
-  rowMeans(t_rec_filtered) > 1.0 | rownames(t_rec_filtered) %in% clientes_obj4, ]
-t_rec_filtered <- t_rec_filtered[, colCounts(t_rec_filtered) > 20]
-
-# --- Verificar clientes objetivo 4 ---
-verif_clientes <- data.frame(
-  ID = clientes_obj4,
-  Presente = clientes_obj4 %in% rownames(t_rec_filtered)
-)
-print("Verificación de clientes de objetivo 4:")
-print(verif_clientes)
-
-# --- ALS: Entrenamiento ---
-mat <- as(t_rec_filtered, "matrix")
-ratings_df <- as.data.frame(as.table(mat)) %>%
-  filter(Freq > 0) %>%
-  rename(user = Var1, item = Var2, rating = Freq)
-
-train_file <- tempfile()
-write.table(ratings_df, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-reco <- Reco()
-reco$train(data_file(train_file), opts = list(dim = 30, niter = 30, costp_l2 = 0.1, costq_l2 = 0.1))
-
-# --- Predicción para clientes del objetivo 4 ---
-clientes <- clientes_obj4[clientes_obj4 %in% rownames(mat)]
-productos <- colnames(mat)
-combinaciones <- expand.grid(user = clientes, item = productos)
-
-test_file <- tempfile()
-write.table(combinaciones, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-pred_file <- tempfile()
-reco$predict(data_file(test_file), out_file(pred_file))
-combinaciones$score <- scan(pred_file)
-
-# Extraer productos de la última compra (último ticket)
-ultimas_compras <- tickets_enc %>%
-  filter(id_cliente_enc %in% clientes) %>%
-  group_by(id_cliente_enc) %>%
-  filter(dia == max(dia)) %>%
-  summarise(cesta_ultima_compra = list(unique(cod_est)))
-
-# Solución → Hacer left_join antes:
-combinaciones_filtradas <- combinaciones %>%
-  mutate(user = as.character(user)) %>%
-  left_join(ultimas_compras, by = c("user" = "id_cliente_enc")) %>%
-  mutate(
-    cod_est = as.integer(gsub("^X", "", item)),
-    en_cesta_ultima = cod_est %in% cesta_ultima_compra
-  ) %>%
-  filter(!en_cesta_ultima) %>%
-  select(-en_cesta_ultima, -cesta_ultima_compra)
-
-# --- Seleccionar mejor recomendación por cliente ---
-recomendaciones_als <- combinaciones_filtradas %>%
-  group_by(user) %>%
-  slice_max(score, n = 1, with_ties = FALSE) %>%
-  ungroup() %>%
-  rename(cliente = user, producto_recomendado = item) %>%
-  mutate(cod_est = gsub("^X", "", producto_recomendado))
-
-# --- Añadir descripción del producto ---
-recomendaciones_als <- recomendaciones_als %>%
-  left_join(maestrostr, by = "cod_est")
-
-# --- Guardar resultados ---
-write.csv(recomendaciones_als, "recomendaciones_objetivo4_als_mejorado.csv", row.names = FALSE)
-saveRDS(recomendaciones_als, "recomendaciones_objetivo4_als_mejorado.RDS")
-
-# --- Mostrar ---
-print("Recomendaciones ALS mejoradas para Objetivo 4:")
-print(recomendaciones_als[, c("cliente", "producto_recomendado", "descripcion")])
-
-# --- Limpiar archivos temporales ---
-file.remove(train_file, test_file, pred_file)
-
-
-#### TEST 3 ####
-
-library(dplyr)
-library(tidyr)
+library(lubridate)
 library(recosystem)
 library(recommenderlab)
 
-# --- Cargar datos ---
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
 
-clientes_obj4 <- objetivos$objetivo4$obj
+maestrostr   <- readRDS("maestroestr.RDS")
+objetivos    <- readRDS("objetivos.RDS")
+tickets  <- readRDS("tickets_enc.RDS")
 
-# --- Matriz cliente-producto ---
-resumen <- tickets_enc %>%
-  count(id_cliente_enc, cod_est, name = "n_compras_producto")
+obj4<-objetivos[[4]]$obj
 
-t <- pivot_wider(resumen, names_from = "cod_est", values_from = "n_compras_producto") %>%
-  data.frame()
-rownames(t) <- t[, 1]
-t <- t[, -1]
+tickets_filtrados <- tickets[tickets$id_cliente_enc %in% obj4, ]
 
-# --- Crear realRatingMatrix ---
-t_rec <- as(as.matrix(t), "realRatingMatrix")
+tickets_filtrados_agrupados<- tickets_filtrados%>%  
+  group_by(id_cliente_enc, cod_est) %>% 
+  summarise(N_compras = n())
 
-# --- Reducción menos agresiva ---
-t_rec_filtered <- t_rec[
-  rowCounts(t_rec) > 10 | rownames(t_rec) %in% clientes_obj4, ] # Reducido a 10
-t_rec_filtered <- t_rec_filtered[
-  rowMeans(t_rec_filtered) > 0.5 | rownames(t_rec_filtered) %in% clientes_obj4, ] # Reducido a 0.5
-t_rec_filtered <- t_rec_filtered[, colCounts(t_rec_filtered) > 10] # Reducido a 10
 
-# --- Verificación ---
-verif_clientes <- data.frame(
-  ID = clientes_obj4,
-  Presente = clientes_obj4 %in% rownames(t_rec_filtered)
-)
-print("Verificación de clientes de objetivo 4:")
-print(verif_clientes)
+tickets_filtrados <- tickets_filtrados %>%
+  mutate(fecha = ymd(dia)) 
 
-# --- ALS: Entrenamiento ---
-mat <- as(t_rec_filtered, "matrix")
-ratings_df <- as.data.frame(as.table(mat)) %>%
-  filter(Freq > 0) %>%
-  rename(user = Var1, item = Var2, rating = Freq)
-
-train_file <- tempfile()
-write.table(ratings_df, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-reco <- Reco()
-reco$train(data_file(train_file), opts = list(dim = 40, niter = 50, costp_l2 = 0.05, costq_l2 = 0.05)) # Más iteraciones y regularización más suave
-
-# --- Predicción ---
-clientes <- clientes_obj4[clientes_obj4 %in% rownames(mat)]
-productos <- colnames(mat)
-combinaciones <- expand.grid(user = clientes, item = productos)
-
-test_file <- tempfile()
-write.table(combinaciones, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-pred_file <- tempfile()
-reco$predict(data_file(test_file), out_file(pred_file))
-combinaciones$score <- scan(pred_file)
-
-# --- Extraer productos de la última compra ---
-ultimas_compras <- tickets_enc %>%
-  filter(id_cliente_enc %in% clientes) %>%
+ultimos_tickets <- tickets_filtrados %>%
   group_by(id_cliente_enc) %>%
-  filter(dia == max(dia)) %>%
-  summarise(cesta_ultima_compra = list(unique(cod_est)))
-
-# --- Añadir info de última compra ---
-combinaciones <- combinaciones %>%
-  mutate(user = as.character(user)) %>%
-  left_join(ultimas_compras, by = c("user" = "id_cliente_enc")) %>%
-  mutate(
-    cod_est = as.integer(gsub("^X", "", item)),
-    en_cesta_ultima = cod_est %in% cesta_ultima_compra
-  ) %>%
-  filter(!en_cesta_ultima) %>%
-  select(-en_cesta_ultima, -cesta_ultima_compra)
-
-# --- Penalización de productos hiper-populares (diversificación) ---
-producto_popularidad <- tickets_enc %>%
-  count(cod_est, name = "n_veces_comprado")
-
-# Forzar cod_est a character para el join
-combinaciones <- combinaciones %>%
-  mutate(cod_est = as.character(cod_est))
-
-# Ahora sí, left_join sin problemas
-combinaciones <- combinaciones %>%
-  left_join(producto_popularidad, by = "cod_est") %>%
-  mutate(score_ajustado = score / log1p(n_veces_comprado))
-
-# --- Seleccionar mejor producto (diversificado) ---
-recomendaciones_als <- combinaciones %>%
-  group_by(user) %>%
-  slice_max(score_ajustado, n = 1, with_ties = FALSE) %>%
-  ungroup() %>%
-  rename(cliente = user, producto_recomendado = item) %>%
-  mutate(cod_est = gsub("^X", "", producto_recomendado))
-
-# --- Añadir descripción ---
-recomendaciones_als <- recomendaciones_als %>%
-  left_join(maestrostr, by = "cod_est")
-
-# --- Guardar resultados ---
-write.csv(recomendaciones_als, "recomendaciones_objetivo4_als_diversificado.csv", row.names = FALSE)
-saveRDS(recomendaciones_als, "recomendaciones_objetivo4_als_diversificado.RDS")
-
-# --- Mostrar ---
-print("Recomendaciones ALS diversificadas (última compra):")
-print(recomendaciones_als[, c("cliente", "producto_recomendado", "descripcion")])
-
-# --- Limpiar ---
-file.remove(train_file, test_file, pred_file)
-
-
-
-
-#### TEST 4 ####
-
-# ---------------------------
-# 🔵 Librerías
-# ---------------------------
-library(dplyr)
-library(tidyr)
-library(recommenderlab)
-library(recosystem)
-
-# ---------------------------
-# 🔵 Cargar datos
-# ---------------------------
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
-
-clientes_obj4 <- objetivos$objetivo4$obj
-
-# ---------------------------
-# 🔵 Última compra de cada cliente objetivo
-# ---------------------------
-ultimas_compras <- tickets_enc %>%
-  filter(id_cliente_enc %in% clientes_obj4) %>%
-  group_by(id_cliente_enc) %>%
-  filter(dia == max(dia)) %>%
-  summarise(cesta_ultima = list(unique(cod_est)))
-
-# ---------------------------
-# 🔵 Crear resumen cliente-producto (frecuencia de compra)
-# ---------------------------
-resumen <- tickets_enc %>%
-  count(id_cliente_enc, cod_est, name = "n_compras_producto")
-
-# Transformar a formato ancho
-t <- pivot_wider(resumen, names_from = "cod_est", values_from = "n_compras_producto") %>%
-  data.frame()
-
-rownames(t) <- t[, 1]
-t <- t[, -1]
-
-# Convertir a matriz de ratings
-t_rec <- as(as.matrix(t), "realRatingMatrix")
-
-# ---------------------------
-# 🔵 Filtrar clientes
-# ---------------------------
-
-# Filtrar clientes a conservar (según el segundo código)
-clientes_a_salvar <- c(
-  "b51353fcf07cb61280eda45e33679871", "02ff5edaa057b63ea0a0010c5402205c", 
-  "25d259d32a2bc254343715f2e347c518", "53ffb83e85fd51cf1ec2fdef3c78b4fd", 
-  "26f424b3bba6aaf97952ac599ed39f75", "32cc820ac27ff143c3ea976f3fe69d34", 
-  "a57938025d714b65612bf2cfde12136d", "af30d404e282749ccd5f5ad0c8e834c7", 
-  "8b9aa623b654a8be21b316a5fdf41007", "e27ceb0a1576648212c4325fdf7d8002",
-  "fe234baf66f020e01feb5253dfb398f0", "d85ceefcf666f2b27e3e1e1252e5a1ac", 
-  "a8a16b0b76cb14783348e920a59588ed", "1d98f84a5f074ed9c7a47515d4f5f329", 
-  "528435b91691a75f5a60c6ccf4c6294c", "8e8315ed119c1382c4d351bbb188510e", 
-  "fe52311b246f88407a1142d891ad77ae", "503a6539df48964124fe026b9deb5d13", 
-  "a809525fe25b3de695bc87e00bea215f", "ec926181c315b758d775ee64a6a8e033"
-)
-
-# Aplicar filtro de clientes
-filtro_row_1 <- rowCounts(t_rec) > 23 | rownames(t_rec) %in% clientes_a_salvar
-t_rec_1 <- t_rec[filtro_row_1, ]
-
-filtro_row_2 <- rowMeans(t_rec_1) > 1.042 | rownames(t_rec_1) %in% clientes_a_salvar
-t_rec_2 <- t_rec_1[filtro_row_2, ]
-
-# ---------------------------
-# 🔵 Reducción de la matriz (productos)
-# ---------------------------
-
-# Reducir la mitad de la matriz filtrada (filtrar a la mitad de los productos)
-n_productos <- ncol(t_rec_2)
-n_productos_a_reducir <- floor(n_productos / 2)
-
-# Seleccionar los productos con mayor frecuencia de compras
-producto_frecuencias <- colCounts(t_rec_2)
-productos_validos <- order(producto_frecuencias, decreasing = TRUE)[1:n_productos_a_reducir]
-t_rec_3 <- t_rec_2[, productos_validos]
-
-# Verificación de los clientes seleccionados
-verif_clientes <- data.frame(
-  ID = clientes_a_salvar,
-  Presente = clientes_a_salvar %in% rownames(t_rec_3)
-)
-
-# Mostrar la verificación de los clientes
-print("Verificación de clientes:")
-print(verif_clientes)
-
-# Mostrar el número de clientes y productos seleccionados
-cat("\nNúmero de clientes seleccionados: ", nrow(t_rec_3), "\n")
-cat("Número de productos seleccionados: ", ncol(t_rec_3), "\n")
-
-# ---------------------------
-# 🔵 Recomendaciones
-# ---------------------------
-
-# Convertir el objeto 'realRatingMatrix' a un formato de matriz normal
-ratings_matrix <- as(t_rec_3, "matrix")
-
-# Convertir la matriz a un data.frame
-ratings_long <- as.data.frame(as.table(ratings_matrix)) %>%
-  filter(Freq > 0) %>%
-  rename(user = Var1, item = Var2, rating = Freq)
-
-train_file <- tempfile()
-write.table(ratings_long, file = train_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-reco <- Reco()
-reco$train(data_file(train_file), opts = list(dim = 40, niter = 30, costp_l2 = 0.1, costq_l2 = 0.1))
-
-# Predicción ALS
-productos <- colnames(ratings_matrix)
-combinaciones <- expand.grid(user = rownames(t_rec_3), item = productos)
-
-test_file <- tempfile()
-write.table(combinaciones, file = test_file, sep = " ", row.names = FALSE, col.names = FALSE)
-
-pred_file <- tempfile()
-reco$predict(data_file(test_file), out_file(pred_file))
-combinaciones$score <- scan(pred_file)
-
-# Filtrar productos ya comprados en la última compra
-ultimas_compras_df <- ultimas_compras %>% rename(user = id_cliente_enc)
-
-combinaciones <- combinaciones %>%
-  mutate(cod_est = as.character(item)) %>%
-  left_join(ultimas_compras_df, by = "user") %>%
-  rowwise() %>%
-  filter(!(cod_est %in% cesta_ultima)) %>%
+  filter(fecha == max(fecha)) %>%
   ungroup()
 
-# Seleccionar mejor recomendación ALS
-recomendaciones_als <- combinaciones %>%
-  group_by(user) %>%
-  slice_max(score, n = 1, with_ties = FALSE) %>%
-  ungroup() %>%
-  rename(cliente = user, producto_recomendado = cod_est) %>%
-  left_join(maestrostr, by = c("producto_recomendado" = "cod_est"))
+historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
 
-# ---------------------------
-# 🔵 Limpiar temporales
-# ---------------------------
-file.remove(train_file, test_file, pred_file)
 
-# Mostrar recomendaciones ALS
-cat("\n--- Recomendaciones ALS ---\n")
-print(recomendaciones_als[, c("cliente", "producto_recomendado", "descripcion")])
+tickets_matriz_agrupado <- historial_tickets %>%
+  group_by(id_cliente_enc, cod_est) %>%
+  summarise(N_compras = n(), .groups = "drop")
 
+df_matriz <- pivot_wider(
+  tickets_matriz_agrupado, 
+  names_from = "cod_est", 
+  values_from = "N_compras", 
+  values_fill = 0,
+  names_prefix = "id_"
+)
+
+matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
+rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
+
+
+modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
+modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
+
+preds_o4 <- modelo_wrmf_o4$predict(matriz_sparse_o4, k = 1)
+
+clientes <- rownames(matriz_sparse_o4)
+productos_predichos <- attr(preds_o4, "ids")
+
+recomendaciones_o4 <- data.frame(
+  id_cliente_enc = clientes,
+  producto_olvidado = productos_predichos
+)
+
+recomendaciones_o4 <- recomendaciones_o4 %>%
+  mutate(cod_est = str_remove(producto_olvidado, "id_")) %>%
+  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est") %>%
+  select(id_cliente_enc, cod_est, descripcion)
+
+
+
+# Librerías necesarias
+library(data.table)
+library(Matrix)
+library(recosystem)
+
+# 1. Cargar los datos
+maestroestr <- readRDS("maestroestr.RDS")
+objetivos <- readRDS("objetivos.RDS")
+tickets_enc <- readRDS("tickets_enc.RDS")
+
+# 2. Clientes del Objetivo 4 (CORRECTO AHORA)
+clientes_obj4 <- objetivos$objetivo4$obj
+
+# 3. Identificar última compra de cada cliente del Objetivo 4
+tickets_obj4 <- tickets_enc[id_cli %in% clientes_obj4]
+ultima_compra <- tickets_obj4[order(id_cli, -fecha_compra), .SD[1], by = id_cli]
+
+# 4. Crear dataset de entrenamiento (sin la última compra de esos clientes)
+tickets_train <- tickets_enc[!id_ticket %in% ultima_compra$id_ticket]
+
+# 5. Crear matriz Cliente-Producto (usando cantidad comprada)
+matriz_cp <- tickets_train[, .(cantidad = sum(cantidad)), by = .(id_cli, id_articulo)]
+
+# 6. Convertir a Sparse Matrix
+clientes <- unique(matriz_cp$id_cli)
+productos <- unique(matriz_cp$id_articulo)
+
+i <- match(matriz_cp$id_cli, clientes)
+j <- match(matriz_cp$id_articulo, productos)
+x <- matriz_cp$cantidad
+
+sparse_mat <- sparseMatrix(i = i, j = j, x = x,
+                           dims = c(length(clientes), length(productos)),
+                           dimnames = list(clientes, productos))
+
+# 7. Preparar datos para ALS (recosystem requiere formato tripleta)
+train_data <- data_memory(user_index = i, item_index = j, rating = x)
+
+# 8. Entrenar ALS
+r <- Reco()
+set.seed(123)
+r$train(train_data, opts = list(dim = 20, lrate = 0.1, costp_l2 = 0.01, costq_l2 = 0.01, nthread = 4, niter = 20, verbose = TRUE))
+
+# 9. Predecir para clientes del objetivo 4
+# Solo predecimos para clientes que están en la matriz de train
+clientes_pred_i <- match(clientes_obj4, clientes)
+clientes_pred_i <- clientes_pred_i[!is.na(clientes_pred_i)] # Evitar NAs
+
+# Crear pares cliente-producto para predecir
+pred_pairs <- expand.grid(user = clientes_pred_i, item = 1:length(productos))
+pred_data <- data_memory(user_index = pred_pairs$user, item_index = pred_pairs$item)
+
+# Predicciones ALS
+scores <- r$predict(pred_data, out_memory())
+
+# Resultado final en data.table
+resultados <- data.table(
+  id_cli = clientes[clientes_pred_i][pred_pairs$user],
+  id_articulo = productos[pred_pairs$item],
+  score = scores
+)
+
+# 10. Top-N recomendaciones por cliente
+top_n <- 5  # Cambia si quieres más recomendaciones
+recomendaciones <- resultados[order(-score), head(.SD, top_n), by = id_cli]
+
+# Mostrar recomendaciones finales
+print(recomendaciones)
+
+
+
+
+
+
+
+
+obj4<-objetivos[[4]]$obj
+
+tickets_filtrados <- tickets[tickets$id_cliente_enc %in% obj4, ]
+
+tickets_filtrados_agrupados<- tickets_filtrados%>%  
+  group_by(id_cliente_enc, cod_est) %>% 
+  summarise(N_compras = n())
+
+
+tickets_filtrados <- tickets_filtrados %>%
+  mutate(fecha = ymd(dia)) 
+
+ultimos_tickets <- tickets_filtrados %>%
+  group_by(id_cliente_enc) %>%
+  filter(fecha == max(fecha)) %>%
+  ungroup()
+
+historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
+
+
+tickets_matriz_agrupado <- historial_tickets %>%
+  group_by(id_cliente_enc, cod_est) %>%
+  summarise(N_compras = n(), .groups = "drop")
+
+df_matriz <- pivot_wider(
+  tickets_matriz_agrupado, 
+  names_from = "cod_est", 
+  values_from = "N_compras", 
+  values_fill = 0,
+  names_prefix = "id_"
+)
+
+matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
+rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
+
+
+modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
+modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
+
+preds_o4 <- modelo_wrmf_o4$predict(matriz_sparse_o4, k = 1)
+
+clientes <- rownames(matriz_sparse_o4)
+productos_predichos <- attr(preds_o4, "ids")
+
+recomendaciones_o4 <- data.frame(
+  id_cliente_enc = clientes,
+  producto_olvidado = productos_predichos
+)
+
+recomendaciones_o4 <- recomendaciones_o4 %>%
+  mutate(cod_est = str_remove(producto_olvidado, "id_")) %>%
+  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est") %>%
+  select(id_cliente_enc, cod_est, descripcion)
+
+
+
+
+
+
+
+# ——————————————————————————————————————
+# Script ALS para Objetivo 4 (Eroski)
+# ——————————————————————————————————————
+
+# 0. Instalación (si no las tienes):
+# install.packages(c("data.table", "Matrix", "recosystem"))
+
+# 1. Librerías necesarias
+library(data.table)
+library(Matrix)
+library(recosystem)
+
+# 2. Cargar los datos
+maestroestr <- readRDS("maestroestr.RDS")      # Datos maestros de clientes
+objetivos   <- readRDS("objetivos.RDS")        # Lista con objetivos, incluyendo objetivo4$obj
+tickets_enc <- readRDS("tickets_enc.RDS")      # Historial de tickets
+
+# 3. Revisar nombres de columnas y renombrar si hace falta
+# Imprimir nombres para verificar:
+print(names(tickets_enc))
+# Si tus columnas no se llaman id_ticket, id_cli, id_articulo, cantidad, fecha_compra,
+# cámbialas con setnames. Ejemplo:
+# setnames(tickets_enc,
+#          old = c("cliente_id", "articulo_id", "qty", "fecha"),
+#          new = c("id_ticket", "id_cli", "id_articulo", "cantidad", "fecha_compra"))
+
+# 4. Extraer clientes del Objetivo 4
+clientes_obj4 <- objetivos$objetivo4$obj       # Vector con IDs de cliente
+
+# 5. Identificar la última compra de cada cliente del Objetivo 4
+tickets_obj4  <- tickets_enc[id_cli %in% clientes_obj4]
+ultima_compra <- tickets_obj4[order(id_cli, -fecha_compra), .SD[1], by = id_cli]
+
+# 6. Crear dataset de entrenamiento (excluyendo esas últimas compras)
+tickets_train <- tickets_enc[!id_ticket %in% ultima_compra$id_ticket]
+
+# 7. Construir la matriz cliente-producto con suma de cantidades
+matriz_cp <- tickets_train[, .(
+  cantidad = sum(cantidad)
+), by = .(id_cli, id_articulo)]
+
+# 8. Convertir a Sparse Matrix (para inspección o uso aparte)
+clientes  <- unique(matriz_cp$id_cli)
+productos <- unique(matriz_cp$id_articulo)
+i <- match(matriz_cp$id_cli, clientes)
+j <- match(matriz_cp$id_articulo, productos)
+x <- matriz_cp$cantidad
+
+sparse_mat <- sparseMatrix(
+  i = i, j = j, x = x,
+  dims = c(length(clientes), length(productos)),
+  dimnames = list(clientes, productos)
+)
+
+# 9. Preparar datos para recosystem (formato tripleta)
+train_data <- data_memory(
+  user_index = i,
+  item_index = j,
+  rating     = x
+)
+
+# 10. Entrenar modelo ALS con recosystem
+reco_model <- Reco()
+set.seed(123)
+reco_model$train(
+  train_data,
+  opts = list(
+    dim       = 20,     # Factores latentes
+    lrate     = 0.1,    # Learning rate
+    costp_l2  = 0.01,   # Regularización P
+    costq_l2  = 0.01,   # Regularización Q
+    nthread   = 4,      # Hilos
+    niter     = 20,     # Iteraciones
+    verbose   = TRUE
+  )
+)
+
+# 11. Preparar pares para predecir sólo clientes de Objetivo 4 presentes en train
+clientes_pred_i <- match(clientes_obj4, clientes)
+clientes_pred_i <- clientes_pred_i[!is.na(clientes_pred_i)]  # Quitar NAs
+
+pred_pairs <- expand.grid(
+  user = clientes_pred_i,
+  item = seq_along(productos)
+)
+
+pred_data <- data_memory(
+  user_index = pred_pairs$user,
+  item_index = pred_pairs$item
+)
+
+# 12. Obtener scores de predicción
+scores <- reco_model$predict(pred_data, out_memory())
+
+# 13. Construir tabla de resultados y extraer Top-N
+resultados <- data.table(
+  id_cli      = clientes[clientes_pred_i][pred_pairs$user],
+  id_articulo = productos[pred_pairs$item],
+  score       = scores
+)
+
+top_n <- 5  # Número de recomendaciones por cliente
+recomendaciones <- resultados[
+  order(-score),
+  head(.SD, top_n),
+  by = id_cli
+]
+
+# 14. Mostrar y guardar resultados
+print(recomendaciones)
+# fwrite(recomendaciones, "recomendaciones_obj4.csv")
+
+# ——————————————————————————————————————
+# Fin del script
+# ——————————————————————————————————————
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# === INSTALAR Y CARGAR LIBRERÍAS ===
+# install.packages("Matrix")
+# remotes::install_github("dselivanov/rsparse")
+library(dplyr)
+library(tidyr)
+library(Matrix)
+library(rsparse)
+library(lubridate)
+library(stringr)
+
+# === CARGAR DATOS ===
+maestroestr <- readRDS("maestroestr.RDS")      # Datos maestros de clientes
+objetivos   <- readRDS("objetivos.RDS")        # Lista con objetivos, incluyendo objetivo4$obj
+tickets <- readRDS("tickets_enc.RDS") 
+
+
+# Datos objetivo 4
+obj4 <- objetivos[[4]]$obj
+
+# Filtrar tickets de clientes objetivo
+tickets_filtrados <- tickets %>% filter(id_cliente_enc %in% obj4)
+
+# Convertir fecha
+tickets_filtrados <- tickets_filtrados %>% mutate(fecha = ymd(dia))
+
+# Últimos tickets (última compra)
+ultimos_tickets <- tickets_filtrados %>%
+  group_by(id_cliente_enc) %>%
+  filter(fecha == max(fecha)) %>%
+  ungroup()
+
+# Historial excluyendo la última compra
+historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
+
+# Crear matriz de interacciones usuario-producto (conteo)
+tickets_matriz_agrupado <- historial_tickets %>%
+  group_by(id_cliente_enc, cod_est) %>%
+  summarise(N_compras = n(), .groups = "drop")
+
+# Pivotar a matriz wide
+df_matriz <- pivot_wider(
+  tickets_matriz_agrupado,
+  names_from = cod_est,
+  values_from = N_compras,
+  values_fill = 0,
+  names_prefix = "id_"
+)
+
+# Crear matriz sparse
+matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
+rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
+
+# Entrenar modelo WRMF
+modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, alpha = 40, feedback = "implicit")
+modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
+
+# Predecir por cliente excluyendo productos de la última compra
+codigos_columnas <- str_remove(colnames(matriz_sparse_o4), "id_")
+
+colnames(matriz_sparse_o4) <- paste0("id_", colnames(matriz_sparse_o4))
+
+
+recomendaciones_list <- vector("list", length = nrow(matriz_sparse_o4))
+codigos_columnas <- str_remove(colnames(matriz_sparse_o4), "id_")
+
+for (i in seq_len(nrow(matriz_sparse_o4))) {
+  cliente <- rownames(matriz_sparse_o4)[i]
+  
+  # Productos de la última compra para excluir
+  productos_excluir <- ultimos_tickets %>%
+    filter(id_cliente_enc == cliente) %>%
+    pull(cod_est)
+  
+  productos_excluir_idx <- which(codigos_columnas %in% productos_excluir)
+  
+  # Scores para todos los productos para cliente i
+  scores <- modelo_wrmf_o4$predict(user_index = i, item_index = seq_len(ncol(matriz_sparse_o4)))
+  
+  # Excluir productos ya comprados
+  if(length(productos_excluir_idx) > 0) {
+    scores[productos_excluir_idx] <- -Inf
+  }
+  
+  mejor_idx <- which.max(scores)
+  producto_recomendado <- codigos_columnas[mejor_idx]
+  
+  recomendaciones_list[[i]] <- data.frame(
+    id_cliente_enc = cliente,
+    cod_est = producto_recomendado,
+    stringsAsFactors = FALSE
+  )
+}
+
+# Combinar resultados en un solo dataframe
+recomendaciones_o4 <- do.call(rbind, recomendaciones_list)
+
+# Añadir descripción
+recomendaciones_o4 <- recomendaciones_o4 %>%
+  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est")
+
+print(recomendaciones_o4)
+
+
+print(colnames(matriz_sparse_o4))
+print(dim(matriz_sparse_o4))
 
 
