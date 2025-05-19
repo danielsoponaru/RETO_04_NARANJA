@@ -140,6 +140,7 @@ print(top_clientes)
 # ===============================
 # 11. Estadísticas extendidas por cluster
 # ===============================
+
 summary_extendido<- matriz_con_cluster %>%
   group_by(kmeans_cluster) %>%
   summarise(across(all_of(variables),
