@@ -1,4 +1,4 @@
-  #===============================
+  #================================
   # 1. Librerías necesarias
   # ===============================
 library(lubridate)
@@ -6,9 +6,10 @@ library(dplyr)
 library(naniar)
 library(tidyr)
 library(ggplot2)
+library(purrr)
 library(cluster)
 library(recosystem)
-library(purrr)
+
 
 # ===============================
 # 2. Carga y preprocesamiento de datos
@@ -123,3 +124,20 @@ matriz_con_cluster <- matriz_df %>%
   select(id_cliente_enc, kmeans_cluster, everything())
 
 saveRDS(matriz_con_cluster, "matriz_con_cluster.RDS")
+
+# ===============================
+# 8. Tabla de centroides
+# ===============================
+centroides_clusters <- as.data.frame(kmeans_result$centers)
+centroides_clusters$cluster <- paste0("Cluster_", 1:nrow(centroides_clusters)) 
+
+centroide_general <- colMeans(datos_scaled)
+centroide_general_df <- as.data.frame(t(centroide_general))
+centroide_general_df$cluster <- "Centroide_Global"
+
+tabla_centroides <- bind_rows(centroides_clusters, centroide_general_df) %>%
+  select(cluster, everything())
+
+print(tabla_centroides)
+
+write.csv(tabla_centroides, "Datos/centroides_clusters.csv", row.names = FALSE)
