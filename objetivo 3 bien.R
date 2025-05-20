@@ -89,3 +89,10 @@ ct <- resultado_final %>%
 
 # Mostrar tabla resumen
 print(ct)
+
+
+# ----------------------------------------------------------
+# 9. EVALUACIÓN DEL MODELO ALS (Feedback Implícito)
+# ----------------------------------------------------------
+
+
