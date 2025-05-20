@@ -3,9 +3,9 @@ library(tidyr)
 library(recommenderlab)
 
 # Cargar datos
-maestrostr <- readRDS("Datos/maestroestr.RDS")
-objetivos <- readRDS("Datos/objetivos.RDS")
-tickets_enc <- readRDS("Datos/tickets_enc.RDS")
+maestrostr <- readRDS("maestroestr.RDS")
+objetivos <- readRDS("objetivos.RDS")
+tickets_enc <- readRDS("tickets_enc.RDS")
 
 # Enriquecer tickets
 tickets_enc <- tickets_enc %>%
@@ -59,6 +59,14 @@ t_rec_3 <- t_rec_2[filtro_row_1, ]
 filtro_row_2 <- rowMeans(t_rec_3) > 1.042 | rownames(t_rec_3) %in% clientes_a_salvar
 t_rec_4 <- t_rec_3[filtro_row_2, ]
 
+filas_a_conservar <- (rowCounts(t_rec_4) > 35) | (rownames(t_rec_4) %in% clientes_a_salvar)
+t_rec_5 <- t_rec_4[filas_a_conservar, ]
+
+columnas_a_conservar <- (colCounts(t_rec_5) > 100) | (colnames(t_rec_5) %in% productos_a_salvar)
+t_rec_6 <- t_rec_5[, columnas_a_conservar]
+
+
+
 # Verificaciones opcionales
 data.frame(ID = clientes_a_salvar, Presente = clientes_a_salvar %in% rownames(t_rec_4))
 data.frame(Producto = productos_a_salvar, Presente = productos_a_salvar %in% colnames(t_rec_4))
@@ -86,7 +94,7 @@ print(verif_productos)
 
 
 # Convertir el objeto 'realRatingMatrix' a un formato de matriz normal
-matriz <- as(t_rec_4, "matrix")
+matriz <- as(t_rec_6, "matrix")
 
 # Convertir la matriz a un data.frame
 matriz_df <- as.data.frame(matriz)
@@ -94,5 +102,5 @@ matriz_df <- as.data.frame(matriz)
 # Ver las primeras filas
 head(matriz_df)
 
-saveRDS(matriz_df, "Datos/matriz.RDS")
+saveRDS(matriz_df, "MatrizSuperReducida.RDS")
 
