@@ -30,6 +30,8 @@ objetivos<- readRDS("objetivos.RDS")
 clientes_objetivo<- objetivos$objetivo2$obj
 productos<- readRDS("maestroestr.RDS")
 
+sum(data == 0)/(nrow(data) * ncol(data))
+
 #2. Examinar datos y tipos de columnas
 str(data)
 summary(data)
@@ -72,6 +74,21 @@ resultado_final<- merge(resultado,
                          all.x = TRUE)
 resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descripcion")]
 resultado_final
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #############
