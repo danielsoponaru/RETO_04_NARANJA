@@ -63,7 +63,7 @@ modelo_wrmf$fit_transform(matriz, n_iter = 1000L, convergence_tol = 0.000001)
 #-------------------------------------------------------------------------------
 
 # Predecir producto que le falta en la compra
-prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
+prod_objetivo1 <- str_c("X", objetivos$objetivo1$obj)
 
 mo1_prod <- matriz
 mo1_prod[, !(colnames(mo1_prod) %in% prod_objetivo1)] <- 0
@@ -73,16 +73,20 @@ preds_o1_prod <- modelo_wrmf$predict(mo1_prod, k = 10, not_recommend = NULL)
 preds_o1_prod
 attr(preds_o1_prod, "ids")
 
-# OBJETIVO 1 - Predicción por clientes
-prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
+# OBJETIVO 1 - Recomendación por productos (transpuesta de matriz)
+prod_objetivo1 <- paste0("X", objetivos$objetivo1$obj)  # Ajustado al prefijo correcto
+
 tmatriz <- t(matriz)
 
-modelo_wrmf_clientes <- WRMF$new(rank = 10L, lambda = 0.1, feedback = "implicit")
+modelo_wrmf_clientes <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
 modelo_wrmf_clientes$fit_transform(tmatriz, n_iter = 1000L, convergence_tol = 0.000001)
 
 mo1_cli <- tmatriz[rownames(tmatriz) %in% prod_objetivo1, , drop = FALSE]
+if (nrow(mo1_cli) == 0) stop("no se encontraron productos válidos en 'tmatriz'.")
+
+# Conversión obligatoria a sparseMatrix
+library(Matrix)
 mo1_cli <- as(mo1_cli, "sparseMatrix")
 
+# Predicción
 preds_o1_cli <- modelo_wrmf_clientes$predict(mo1_cli, k = 10)
-preds_o1_cli
-attr(preds_o1_cli, "ids")
