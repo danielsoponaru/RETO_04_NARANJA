@@ -1,153 +1,88 @@
-# Librerías
 library(stringr)
 library(rsparse)
 library(recommenderlab)
 library(dplyr)
 library(lubridate)
 library(tidyr)
-library(ggplot2)
 
-set.seed(123)  # (Punto 6) Reproducibilidad
-
-# ----------------------------
-# Carga de datos
-# ----------------------------
 objetivos <- readRDS("objetivos.RDS")
-matriz_final <- readRDS("matriz.rds")
+matriz_reducida <- readRDS("matriz.rds")
 maestro <- readRDS("maestroestr.RDS")
 tickets <- readRDS("tickets_enc.RDS")
 
-# ----------------------------
-# Preparación de matriz
-# ----------------------------
-matriz0 <- as(matriz_final, "matrix")
+matriz <- as(matriz_reducida, "matrix")
 matriz[is.na(matriz)] <- 0
-saveRDS(matriz0, "matriz0.rds")
 
-# ----------------------------
-# Selección del producto objetivo
-# ----------------------------
-prod_objetivo1 <- str_c("X", objetivos$objetivo1$obj)
+# Convertir a objeto realRatingMatrix para evaluación
+matriz_rrm <- as(matriz, "realRatingMatrix")
+
+rmeans <- rowMeans(matriz)
+cmeans <- colMeans(matriz)
+
+rcounts <- rowSums(matriz != 0)
+ccounts <- colSums(matriz != 0)
+
+hist(rmeans)
+hist(cmeans)
+hist(rcounts)
+hist(ccounts)
+
+min(rcounts)
+
+set.seed(12)
+e <- evaluationScheme(matriz_rrm, method = "split", train = 0.8, given = 11, goodRating = 1)
+algos <- list(
+  "random" = list(name = "RANDOM", param = NULL),
+  "ReRecommend" = list(name = "RERECOMMEND", param = NULL),
+  "UBCF_10nn" = list(name = "UBCF", param = list(nn = 10)),
+  "UBCF_50nn" = list(name = "UBCF", param = list(nn = 50)),
+  "IBCF_Pearson" = list(name = "IBCF", param = list(method = "Pearson")),
+  "SVDF_k50" = list(name = "SVDF",  param = list(k = 50)),
+  "SVDF_k100" = list(name = "SVDF",  param = list(k = 100)),
+  "SVDF_k200" = list(name = "SVDF",  param = list(k = 200))
+)
+
+# Realizar predicciones --> ratings / topNList
+eval_topN <- evaluate(e, algos, type = "topNList", n = c(1, 3, 5))
+plot(eval_topN, "prec/rec")
+
+getConfusionMatrix(eval_topN[["random"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_10nn"]])[[1]]
+getConfusionMatrix(eval_topN[["UBCF_50nn"]])[[1]]
+getConfusionMatrix(eval_topN[["IBCF_Pearson"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k50"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k100"]])[[1]]
+getConfusionMatrix(eval_topN[["SVDF_k200"]])[[1]]
+
+eval_ratings <- evaluate(e, algos, type = "ratings", n = c(1, 3, 5))
+plot(eval_ratings, "prec/rec")
+
+# Creamos el modelo WRMF -------------------------------------------------------
+modelo_wrmf <- WRMF$new(rank = 10L, lambda = 0.1, feedback = "implicit")
+modelo_wrmf$fit_transform(matriz, n_iter = 1000L, convergence_tol = 0.000001)
+#-------------------------------------------------------------------------------
+
+# Predecir producto que le falta en la compra
+prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
+
+mo1_prod <- matriz
+mo1_prod[, !(colnames(mo1_prod) %in% prod_objetivo1)] <- 0
+mo1_prod <- as(mo1_prod, "sparseMatrix")
+
+preds_o1_prod <- modelo_wrmf$predict(mo1_prod, k = 10, not_recommend = NULL)
+preds_o1_prod
+attr(preds_o1_prod, "ids")
+
+# OBJETIVO 1 - Predicción por clientes
+prod_objetivo1 <- str_c("id_", objetivos$objetivo1$obj)
 tmatriz <- t(matriz)
 
-# ----------------------------
-# Modelos con distintos ranks (Puntos 1 y 2)
-# ----------------------------
-ranks <- c(10, 50, 100)
-modelos <- list()
-resultados_eval <- list()
+modelo_wrmf_clientes <- WRMF$new(rank = 10L, lambda = 0.1, feedback = "implicit")
+modelo_wrmf_clientes$fit_transform(tmatriz, n_iter = 1000L, convergence_tol = 0.000001)
 
-for (r in ranks) {
-  cat("Entrenando modelo con rank =", r, "\n")
-  modelo <- WRMF$new(rank = r, lambda = 0.1, feedback = 'implicit')
-  modelo$fit_transform(tmatriz, n_iter = 100, convergence_tol = 1e-6)
-  modelos[[as.character(r)]] <- modelo
-}
+mo1_cli <- tmatriz[rownames(tmatriz) %in% prod_objetivo1, , drop = FALSE]
+mo1_cli <- as(mo1_cli, "sparseMatrix")
 
-# ----------------------------
-# Evaluación del modelo base con métricas top-N (Punto 3, 4)
-# ----------------------------
-matriz_eval <- as(t(matriz), "realRatingMatrix")
-esquema <- evaluationScheme(matriz_eval, method = "split", train = 0.8, given = 10, goodRating = 1)
-
-algos <- list(
-  "random"     = list(name = "RANDOM", param = NULL),
-  "UBCF_10"    = list(name = "UBCF", param = list(nn = 10)),
-  "IBCF_Pear"  = list(name = "IBCF", param = list(method = "Pearson")),
-  "SVD_50"     = list(name = "SVDF", param = list(k = 50))
-)
-
-eval_result <- evaluate(esquema, algos, type = "topNList", n = c(1, 3, 5, 10))
-plot(eval_result, "prec/rec")
-
-# ----------------------------
-# Selección de modelo y predicción
-# ----------------------------
-modelo_wrmf <- modelos[["50"]]  # Puedes cambiar aquí el modelo con mejor desempeño
-
-mo1 <- tmatriz[rownames(tmatriz) %in% prod_objetivo1, , drop = FALSE]
-mo1 <- as(mo1, "sparseMatrix")
-
-preds <- modelo_wrmf$predict(mo1, k = ncol(tmatriz))
-scores <- as.numeric(preds)
-names(scores) <- attr(preds, "ids")
-
-compraron <- which(tmatriz[prod_objetivo1, ] > 0)
-no_compraron <- setdiff(names(scores), colnames(tmatriz)[compraron])
-
-top_recomendados <- sort(scores[no_compraron], decreasing = TRUE)[1:10]
-
-# ----------------------------
-# Preparación de data.frame para análisis
-# ----------------------------
-clientes_comunes <- intersect(names(scores), colnames(tmatriz))
-scores_filtrados <- scores[clientes_comunes]
-tmatriz_filtrada <- tmatriz[, clientes_comunes]
-
-scores_validos <- scores_filtrados[!is.na(scores_filtrados)]
-tmatriz_validada <- tmatriz_filtrada[, !is.na(scores_filtrados)]
-
-flag_compro <- colnames(tmatriz_validada) %in% colnames(tmatriz_validada)[compraron]
-
-df_scores <- data.frame(
-  cliente = names(scores_validos),
-  score   = scores_validos,
-  compro  = flag_compro
-)
-
-# ----------------------------
-# Estadísticos descriptivos
-# ----------------------------
-resumen <- df_scores %>%
-  group_by(compro) %>%
-  summarise(
-    n        = n(),
-    media    = mean(score),
-    mediana  = median(score),
-    p25      = quantile(score, 0.25),
-    p75      = quantile(score, 0.75),
-    max      = max(score),
-    min      = min(score)
-  )
-
-print(resumen)
-
-# ----------------------------
-# Prueba t entre grupos
-# ----------------------------
-if (length(unique(df_scores$compro)) == 2) {
-  t_test <- t.test(score ~ compro, data = df_scores)
-  print(t_test)
-}
-
-# ----------------------------
-# Visualización: Boxplot (Punto 11)
-# ----------------------------
-ggplot(df_scores, aes(x = compro, y = score, fill = compro)) +
-  geom_boxplot(outlier.alpha = 0.3) +
-  labs(title = "Distribución de Scores WRMF por Grupo",
-       x = "¿Compró el producto?", y = "Score de recomendación") +
-  theme_minimal()
-
-# ----------------------------
-# Activación operativa (Punto 10)
-# ----------------------------
-threshold <- quantile(scores, 0.95)  # Activar top 5%
-recomendados_operativos <- df_scores %>% filter(score >= threshold)
-
-cat("Total de clientes activables:", nrow(recomendados_operativos), "\n")
-
-# ----------------------------
-# Simulación A/B Test (Punto 9 - bosquejo)
-# ----------------------------
-# Grupo control vs tratamiento (simulado)
-set.seed(123)
-df_scores$grupo <- sample(c("control", "tratamiento"), nrow(df_scores), replace = TRUE)
-
-conversion_rate <- df_scores %>%
-  group_by(grupo, compro) %>%
-  summarise(n = n()) %>%
-  tidyr::pivot_wider(names_from = compro, values_from = n, values_fill = 0) %>%
-  mutate(tasa_conversion = TRUE / (TRUE + FALSE))
-
-print(conversion_rate)
+preds_o1_cli <- modelo_wrmf_clientes$predict(mo1_cli, k = 10)
+preds_o1_cli
+attr(preds_o1_cli, "ids")
