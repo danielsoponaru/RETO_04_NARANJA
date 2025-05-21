@@ -2,17 +2,23 @@
 # CARGA DE LIBRERÍAS Y DATOS
 # -------------------------------------------
 
-# Cargar librerías necesarias para manipulación de datos, fechas y modelos de recomendación
 library(tidyverse)
 library(lubridate)
 library(rsparse)
 library(dplyr)
+library(Matrix)
 
 # 1. Cargar datos desde archivos RDS
-maestro <- readRDS("maestroestr.RDS")       # Información de productos con descripción
-objetivos <- readRDS("objetivos.RDS")       # Lista de clientes objetivos por objetivo
-tickets <- readRDS("tickets_enc.RDS")       # Datos de tickets de compra (transacciones)
-matriz_reducida <- readRDS("matriz.RDS")    # Matriz de interacción cliente-producto
+maestro <- readRDS("maestroestr.RDS")       
+objetivos <- readRDS("objetivos.RDS") 
+tickets <- readRDS("tickets_enc.RDS")      
+
+matriz_reducida <- readRDS("MatrizSuperReducida.RDS")
+# Como carga dataframe convertimos los NAs en 0 y cambio el formato
+matriz_reducida[is.na(matriz_reducida)] <- 0
+matriz_reducida <- as(matriz_reducida, "matrix")
+matriz_reducida <- as(matriz_reducida, "dgCMatrix")
+matriz_reducida@x[matriz_reducida@x >= 1] <- 1
 
 # -------------------------------------------
 # PREPARACIÓN DE DATOS PARA EL OBJETIVO 4
@@ -102,9 +108,9 @@ not_recommend_matrix <- as(not_recommend_df, "dgCMatrix")
 # 16. Predecir recomendaciones para clientes objetivo,
 # excluyendo productos comprados recientemente
 preds_o4 <- modelo_wrmf_o4$predict(
-  matriz_reducida[clientes_en_matriz, ],
-  k = 1,                                  # Solo la mejor recomendación por cliente
-  not_recommend = not_recommend_matrix[clientes_en_matriz, ]  # Productos a excluir
+  not_recommend_matrix[clientes_en_matriz, ],
+  k = 1,                                  
+  not_recommend = not_recommend_matrix[clientes_en_matriz, ]
 )
 
 # -------------------------------------------
@@ -125,4 +131,6 @@ predicciones <- predicciones %>%
   left_join(maestro, by = c("V1" = "cod_est"))
 
 # Renombrar columnas para mayor claridad
-colnames(predicciones) <- c("clientes", "cod_prod", "descripcion")
+colnames(predicciones) <- c("CLIENTES", "COD_PRODUCTO", "DESCRIPCION")
+
+predicciones
