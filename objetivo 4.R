@@ -12,7 +12,13 @@ library(Matrix)
 maestro <- readRDS("maestroestr.RDS")       
 objetivos <- readRDS("objetivos.RDS") 
 tickets <- readRDS("tickets_enc.RDS")      
-matriz_reducida <- readRDS("matriz.RDS")
+
+matriz_reducida <- readRDS("MatrizSuperReducida.RDS")
+# Como carga dataframe convertimos los NAs en 0 y cambio el formato
+matriz_reducida[is.na(matriz_reducida)] <- 0
+matriz_reducida <- as(matriz_reducida, "matrix")
+matriz_reducida <- as(matriz_reducida, "dgCMatrix")
+matriz_reducida@x[matriz_reducida@x >= 1] <- 1
 
 # -------------------------------------------
 # PREPARACIÓN DE DATOS PARA EL OBJETIVO 4
@@ -31,7 +37,6 @@ matriz_sparse_filt <- matriz_reducida[rownames(matriz_reducida) %in% obj4, ]
 matriz_sparse_filt <- as(matriz_sparse_filt, "dgCMatrix")
 matriz_reducida <- as(matriz_reducida, "dgCMatrix")
 
-matriz_reducida@x[matriz_reducida@x >= 1] <- 1
 # 4. Filtrar tickets solo para clientes del objetivo 4 y convertir fechas a formato Date
 tickets_filtrados <- tickets %>%
   filter(id_cliente_enc %in% obj4) %>%
@@ -103,9 +108,9 @@ not_recommend_matrix <- as(not_recommend_df, "dgCMatrix")
 # 16. Predecir recomendaciones para clientes objetivo,
 # excluyendo productos comprados recientemente
 preds_o4 <- modelo_wrmf_o4$predict(
-  matriz_reducida[clientes_en_matriz, ],
-  k = 1,                                  # Solo la mejor recomendación por cliente
-  not_recommend = not_recommend_matrix[clientes_en_matriz, ]  # Productos a excluir
+  not_recommend_matrix[clientes_en_matriz, ],
+  k = 1,                                  
+  not_recommend = not_recommend_matrix[clientes_en_matriz, ]
 )
 
 # -------------------------------------------
