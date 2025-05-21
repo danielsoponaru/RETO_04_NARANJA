@@ -4,7 +4,7 @@ library(recommenderlab)
 library(dplyr)
 library(lubridate)
 library(tidyr)
-
+library(stringr)
 objetivos <- readRDS("objetivos.RDS")
 matriz_reducida <- readRDS("matriz.rds")
 maestro <- readRDS("maestroestr.RDS")
@@ -57,36 +57,47 @@ getConfusionMatrix(eval_topN[["SVDF_k200"]])[[1]]
 eval_ratings <- evaluate(e, algos, type = "ratings", n = c(1, 3, 5))
 plot(eval_ratings, "prec/rec")
 
-# Creamos el modelo WRMF -------------------------------------------------------
-modelo_wrmf <- WRMF$new(rank = 10L, lambda = 0.1, feedback = "implicit")
-modelo_wrmf$fit_transform(matriz, n_iter = 1000L, convergence_tol = 0.000001)
-#-------------------------------------------------------------------------------
+# --- Preparar el producto objetivo ---
+prod_objetivo1 <- str_c("X", objetivos$objetivo1$obj) 
 
-# Predecir producto que le falta en la compra
-prod_objetivo1 <- str_c("X", objetivos$objetivo1$obj)
-
-mo1_prod <- matriz
-mo1_prod[, !(colnames(mo1_prod) %in% prod_objetivo1)] <- 0
-mo1_prod <- as(mo1_prod, "sparseMatrix")
-
-preds_o1_prod <- modelo_wrmf$predict(mo1_prod, k = 10, not_recommend = NULL)
-preds_o1_prod
-attr(preds_o1_prod, "ids")
-
-# OBJETIVO 1 - Recomendación por productos (transpuesta de matriz)
-prod_objetivo1 <- paste0("X", objetivos$objetivo1$obj)  # Ajustado al prefijo correcto
-
+# --- Transponer la matriz: productos como filas, clientes como columnas ---
 tmatriz <- t(matriz)
 
+# --- Entrenar modelo WRMF sobre productos ---
 modelo_wrmf_clientes <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
 modelo_wrmf_clientes$fit_transform(tmatriz, n_iter = 1000L, convergence_tol = 0.000001)
 
+# --- Extraer fila del producto objetivo ---
 mo1_cli <- tmatriz[rownames(tmatriz) %in% prod_objetivo1, , drop = FALSE]
-if (nrow(mo1_cli) == 0) stop("no se encontraron productos válidos en 'tmatriz'.")
 
-# Conversión obligatoria a sparseMatrix
-library(Matrix)
+# Validar que el producto existe en la matriz
+if (nrow(mo1_cli) == 0) stop("Producto no encontrado en la matriz.")
+
+# Convertir a sparseMatrix
 mo1_cli <- as(mo1_cli, "sparseMatrix")
 
-# Predicción
-preds_o1_cli <- modelo_wrmf_clientes$predict(mo1_cli, k = 10)
+# --- Predecir clientes con afinidad al producto ---
+preds_o1_cli <- modelo_wrmf_clientes$predict(mo1_cli, k = 500)  # Un número amplio
+
+# --- Extraer scores e IDs ---
+scores <- attr(preds_o1_cli, "scores")[1, ]
+ids <- attr(preds_o1_cli, "ids")[1, ]
+
+# --- Filtro por score mínimo ---
+score_min <- 0.9  # Ajusta este umbral según el modelo y dominio
+clientes_filtrados <- ids[scores > score_min]
+scores_filtrados <- scores[scores > score_min]
+
+# --- Eliminar los que ya compraron el producto ---
+clientes_con_producto <- which(tmatriz[prod_objetivo1, ] > 0)
+clientes_existentes <- colnames(tmatriz)[clientes_con_producto]
+
+clientes_finales <- clientes_filtrados[!(clientes_filtrados %in% clientes_existentes)]
+scores_finales <- scores_filtrados[!(clientes_filtrados %in% clientes_existentes)]
+
+# --- Mostrar resultado final ---
+resultado <- data.frame(cliente = clientes_finales, score = scores_finales)
+resultado <- resultado[order(-resultado$score), ]  # Ordenar de mayor a menor afinidad
+
+cat("Clientes recomendados (score >", score_min, ") que no compraron el producto:\n")
+print(resultado)
