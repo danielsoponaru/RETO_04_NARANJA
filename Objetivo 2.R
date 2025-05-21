@@ -30,8 +30,6 @@ objetivos<- readRDS("objetivos.RDS")
 clientes_objetivo<- objetivos$objetivo2$obj
 productos<- readRDS("maestroestr.RDS")
 
-sum(data == 0)/(nrow(data) * ncol(data))
-
 #2. Examinar datos y tipos de columnas
 str(data)
 summary(data)
@@ -41,6 +39,8 @@ dim(data)
 str(clientes_objetivo)
 summary(clientes_objetivo)
 
+sum(data == 0)/(nrow(data) * ncol(data))
+
 #3. Preparar la matriz
 
 #Reemplazar NA con 0 (porque sparseMatrix no admite NA)
@@ -48,6 +48,9 @@ matriz<- replace(data, is.na(data), 0)
 
 #Convierte a matriz sparseMatrix
 matriz_sparse<- as(as.matrix(matriz), "sparseMatrix")
+matriz_sparseB<- ifelse(matriz_sparse > 0, 1, 0)
+matriz_sparse@x[matriz_sparse@x>=1]<-1
+matriz_sparse
 
 #4. Entrenar modelo ALS
 set.seed(7)
@@ -74,18 +77,6 @@ resultado_final<- merge(resultado,
                          all.x = TRUE)
 resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descripcion")]
 resultado_final
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
