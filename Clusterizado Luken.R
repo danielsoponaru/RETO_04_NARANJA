@@ -139,5 +139,3 @@ tabla_centroides <- bind_rows(centroides_clusters, centroide_general_df) %>%
   select(cluster, everything())
 
 print(tabla_centroides)
-
-write.csv(tabla_centroides, "Datos/centroides_clusters.csv", row.names = FALSE)
