@@ -2,17 +2,17 @@
 # CARGA DE LIBRERÍAS Y DATOS
 # -------------------------------------------
 
-# Cargar librerías necesarias para manipulación de datos, fechas y modelos de recomendación
 library(tidyverse)
 library(lubridate)
 library(rsparse)
 library(dplyr)
+library(Matrix)
 
 # 1. Cargar datos desde archivos RDS
-maestro <- readRDS("maestroestr.RDS")       # Información de productos con descripción
-objetivos <- readRDS("objetivos.RDS")       # Lista de clientes objetivos por objetivo
-tickets <- readRDS("tickets_enc.RDS")       # Datos de tickets de compra (transacciones)
-matriz_reducida <- readRDS("matriz.RDS")    # Matriz de interacción cliente-producto
+maestro <- readRDS("maestroestr.RDS")       
+objetivos <- readRDS("objetivos.RDS") 
+tickets <- readRDS("tickets_enc.RDS")      
+matriz_reducida <- readRDS("matriz.RDS")
 
 # -------------------------------------------
 # PREPARACIÓN DE DATOS PARA EL OBJETIVO 4
@@ -31,6 +31,7 @@ matriz_sparse_filt <- matriz_reducida[rownames(matriz_reducida) %in% obj4, ]
 matriz_sparse_filt <- as(matriz_sparse_filt, "dgCMatrix")
 matriz_reducida <- as(matriz_reducida, "dgCMatrix")
 
+matriz_reducida@x[matriz_reducida@x >= 1] <- 1
 # 4. Filtrar tickets solo para clientes del objetivo 4 y convertir fechas a formato Date
 tickets_filtrados <- tickets %>%
   filter(id_cliente_enc %in% obj4) %>%
@@ -125,4 +126,6 @@ predicciones <- predicciones %>%
   left_join(maestro, by = c("V1" = "cod_est"))
 
 # Renombrar columnas para mayor claridad
-colnames(predicciones) <- c("clientes", "cod_prod", "descripcion")
+colnames(predicciones) <- c("CLIENTES", "COD_PRODUCTO", "DESCRIPCION")
+
+predicciones
