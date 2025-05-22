@@ -62,17 +62,16 @@ predicciones_rating5<- predict(modelo_SVDF_ratings, getData(eval_scheme, "known"
 predicion_rating_matriz5<- as(predicciones_rating5, "matrix")
 
 #ALS
-modelo_ALS_ratings <- Recommender(getData(eval_scheme, "train"), "ALS", param = list(lambda = 0.1, n_factors = 10, n_iterations = 10))
+modelo_ALS_ratings<- Recommender(getData(eval_scheme, "train"), "ALS", param = list(lambda = 0.1, n_factors = 10, n_iterations = 10))
 predicciones_rating_ALS<- predict(modelo_ALS_ratings, getData(eval_scheme, "known"), type = "ratings")
-prediccion_rating_matriz_ALS <- as(predicciones_rating_ALS, "matrix")
-
+prediccion_rating_matriz_ALS<- as(predicciones_rating_ALS, "matrix")
 
 
 
 ##########    Predicciones con TopNLIst:
 
 #POPULAR
-modelo_POPULAR_topNlist<- Recommender(getData(eval_scheme, "train"), "POPULAR", param=NULL)
+modelo_POPULAR_topNlist<- Recommender(getData(eval_scheme, "train"), "POPULAR", param = NULL)
 predicciones_topNlist<- predict(modelo_POPULAR_topNlist,getData(eval_scheme, "known"), type="topNList")
 prediccion_topNlist_matriz<- as(predicciones_topNlist, "list")
 
