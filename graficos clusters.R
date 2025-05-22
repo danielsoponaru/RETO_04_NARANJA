@@ -2,6 +2,8 @@ library(dplyr)
 library(ggplot2)
 library(lubridate)
 
+options(scipen=999)
+
 clientes_clus=readRDS("clientes_clusterizados.RDS")
 tickets_enc<-readRDS("tickets_enc.RDS")
 maestroestr<-readRDS("maestroestr.RDS")
@@ -27,7 +29,7 @@ grafico_articulos_por_cluster <- function(datos_cluster, num_cluster, color_fill
     group_by(num_ticket, id_cliente_enc) %>%
     summarise(ArticulosPorCompra = n(), .groups = "drop") %>%
     ggplot(aes(x = ArticulosPorCompra)) +
-    geom_histogram(color = "lightblue", fill = "red4", binwidth = 1) +
+    geom_histogram(color = "blue", fill = "lightblue", binwidth = 1) +
     labs(
       title = paste("Artículos por compra - Cluster", num_cluster),
       x = "Artículos por ticket",
@@ -41,7 +43,7 @@ grafico2 <- grafico_articulos_por_cluster(cluster2, 2)
 grafico3 <- grafico_articulos_por_cluster(cluster3, 3)
 
 
-############
+w############
 # GRAFICO 2
 
 grafico_top_articulos <- function(datos, titulo = "Top 10 artículos más comprados", fill_color = "lightblue", border_color = "lightblue4") {
@@ -53,7 +55,7 @@ grafico_top_articulos <- function(datos, titulo = "Top 10 artículos más compra
     left_join(maestroestr, by = "cod_est")
   
   ggplot(top_articulos, aes(x = reorder(descripcion, Cantidad), y = Cantidad)) +
-    geom_col(fill = "lightblue", color = "orange", size = 1.2) +
+    geom_col(fill = "lightblue", color = "blue", size = 1.2) +
     geom_text(aes(label = Cantidad), 
               position = position_stack(vjust = 0.5), 
               color = "white", size = 3) +
@@ -207,6 +209,7 @@ graficar_tickets_por_mes <- function(datos_cluster, titulo_cluster, color_fill =
   # Gráfico
   ggplot(tickets_por_mes, aes(x = Mes, y = CantidadTickets)) +
     geom_col(fill = color_fill, color = color_border, width = 0.7) +
+    coord_cartesian(ylim = c(0, 400000)) +   # <--- Escala fija en el eje Y
     theme_minimal() +
     labs(
       title = paste("Cantidad de tickets por mes -", titulo_cluster),
@@ -215,6 +218,7 @@ graficar_tickets_por_mes <- function(datos_cluster, titulo_cluster, color_fill =
     ) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
+
 
 grafico_mes_cluster1 <- graficar_tickets_por_mes(cluster1, "Cluster 1")
 grafico_mes_cluster2 <- graficar_tickets_por_mes(cluster2, "Cluster 2")
