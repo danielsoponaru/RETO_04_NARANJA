@@ -1,284 +1,128 @@
 # -------------------------------------------
 # CARGA DE LIBRERÍAS Y DATOS
 # -------------------------------------------
+
+# Cargar librerías necesarias para manipulación de datos, fechas y modelos de recomendación
 library(tidyverse)
 library(lubridate)
 library(rsparse)
-
-# Cargar datos
-maestro <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets <- readRDS("tickets_enc.RDS")
-matriz <- readRDS("matriz.RDS")
-
-# -----------------------------------------
-# FILTRADO DE CLIENTES DEL OBJETIVO 4
-# -----------------------------------------
-obj4 <- objetivos[[4]]$obj  # IDs de los clientes objetivo
-
-# Filtrar los tickets de esos clientes
-tickets_filtrados <- tickets %>%
-  filter(id_cliente_enc %in% obj4) %>%
-  mutate(fecha = ymd(dia))  # convertir fecha
-
-# -----------------------------------------
-# SEPARACIÓN DEL HISTORIAL Y ÚLTIMA COMPRA
-# -----------------------------------------
-ultimos_tickets <- tickets_filtrados %>%
-  group_by(id_cliente_enc) %>%
-  filter(fecha == max(fecha)) %>%
-  ungroup()
-
-historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
-
-# -----------------------------------------
-# MATRIZ CLIENTE - PRODUCTO
-# -----------------------------------------
-tickets_matriz_agrupado <- historial_tickets %>%
-  group_by(id_cliente_enc, cod_est) %>%
-  summarise(N_compras = n(), .groups = "drop")
-
-# Formato ancho sin añadir prefijo "id_"
-df_matriz <- pivot_wider(
-  tickets_matriz_agrupado,
-  names_from = cod_est,
-  values_from = N_compras,
-  values_fill = 0
-)
-
-# Crear matriz dispersa
-matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
-rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
-colnames(matriz_sparse_o4) <- colnames(df_matriz)[-1]  # mantener cod_est como nombres de columna
-
-# -----------------------------------------
-# ENTRENAR MODELO WRMF
-# -----------------------------------------
-modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
-modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
-
-# -----------------------------------------
-# GENERAR RECOMENDACIONES
-# -----------------------------------------
-preds_o4 <- modelo_wrmf_o4$predict(matriz_sparse_o4, k = 1)
-
-clientes <- rownames(matriz_sparse_o4)
-productos_predichos <- attr(preds_o4, "ids")
-
-recomendaciones_o4 <- data.frame(
-  id_cliente_enc = clientes,
-  cod_est = productos_predichos
-)
-
-# -----------------------------------------
-# UNIR CON MAESTRO PARA DESCRIPCIÓN
-# -----------------------------------------
-recomendaciones_o4 <- recomendaciones_o4 %>%
-  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est")
-
-# -----------------------------------------
-# MOSTRAR RESULTADO FINAL
-# -----------------------------------------
-print(recomendaciones_o4)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# -----------------------------------------
-# CARGA DE LIBRERÍAS Y DATOS
-# -----------------------------------------
-library(tidyverse)
-library(lubridate)
-library(rsparse)
-
-# Cargar datos
-maestro <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets <- readRDS("tickets_enc.RDS")
-matriz <- readRDS("matriz.RDS")
-
-# -----------------------------------------
-# FILTRADO DE CLIENTES DEL OBJETIVO 4
-# -----------------------------------------
-obj4 <- objetivos[[4]]$obj  # IDs de los clientes objetivo
-
-# Filtrar los tickets de esos clientes y convertir fecha
-tickets_filtrados <- tickets %>%
-  filter(id_cliente_enc %in% obj4) %>%
-  mutate(fecha = ymd(dia))
-
-# -----------------------------------------
-# SEPARACIÓN DEL HISTORIAL Y ÚLTIMA COMPRA
-# -----------------------------------------
-ultimos_tickets <- tickets_filtrados %>%
-  group_by(id_cliente_enc) %>%
-  filter(fecha == max(fecha)) %>%
-  ungroup()
-
-historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
-
-# -----------------------------------------
-# MATRIZ CLIENTE - PRODUCTO
-# -----------------------------------------
-tickets_matriz_agrupado <- historial_tickets %>%
-  group_by(id_cliente_enc, cod_est) %>%
-  summarise(N_compras = n(), .groups = "drop")
-
-# Formato ancho sin prefijo
-df_matriz <- pivot_wider(
-  tickets_matriz_agrupado,
-  names_from = cod_est,
-  values_from = N_compras,
-  values_fill = 0
-)
-
-# Crear matriz dispersa
-matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
-rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
-colnames(matriz_sparse_o4) <- colnames(df_matriz)[-1]  # mantener cod_est como nombres de columna
-
-# -----------------------------------------
-# ENTRENAR MODELO WRMF
-# -----------------------------------------
-modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
-modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
-
-# -----------------------------------------
-# GENERAR RECOMENDACIONES
-# -----------------------------------------
-preds_o4 <- modelo_wrmf_o4$predict(matriz_sparse_o4, k = 1)
-
-clientes <- rownames(matriz_sparse_o4)
-productos_predichos <- attr(preds_o4, "ids")
-
-recomendaciones_o4 <- data.frame(
-  id_cliente_enc = clientes,
-  cod_est = productos_predichos
-)
-
-# -----------------------------------------
-# UNIR CON MAESTRO PARA DESCRIPCIÓN
-# -----------------------------------------
-recomendaciones_o4 <- recomendaciones_o4 %>%
-  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est")
-
-# -----------------------------------------
-# MOSTRAR RESULTADO FINAL
-# -----------------------------------------
-print(recomendaciones_o4)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Cargar librerías
-library(tidyverse)
-library(lubridate)
-library(rsparse)
-
-# 1. Cargar datos
-maestro <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets <- readRDS("tickets_enc.RDS")
-
-# 2. Obtener los clientes del objetivo 4
+library(dplyr)
+
+# 1. Cargar datos desde archivos RDS
+maestro <- readRDS("maestroestr.RDS")       # Información de productos con descripción
+objetivos <- readRDS("objetivos.RDS")       # Lista de clientes objetivos por objetivo
+tickets <- readRDS("tickets_enc.RDS")       # Datos de tickets de compra (transacciones)
+matriz_reducida <- readRDS("matriz.RDS")    # Matriz de interacción cliente-producto
+
+# -------------------------------------------
+# PREPARACIÓN DE DATOS PARA EL OBJETIVO 4
+# -------------------------------------------
+
+# 3. Extraer clientes que forman parte del objetivo 4
 obj4 <- objetivos[[4]]$obj
 
-# 3. Filtrar solo tickets de los clientes objetivo
+# Limpiar nombres de columnas de la matriz para eliminar un carácter inicial no deseado
+colnames(matriz_reducida) <- sub("^.", "", colnames(matriz_reducida))
+
+# Filtrar la matriz solo para los clientes del objetivo 4
+matriz_sparse_filt <- matriz_reducida[rownames(matriz_reducida) %in% obj4, ]
+
+# Convertir matrices a formato sparse para optimizar cálculos
+matriz_sparse_filt <- as(matriz_sparse_filt, "dgCMatrix")
+matriz_reducida <- as(matriz_reducida, "dgCMatrix")
+
+# 4. Filtrar tickets solo para clientes del objetivo 4 y convertir fechas a formato Date
 tickets_filtrados <- tickets %>%
   filter(id_cliente_enc %in% obj4) %>%
   mutate(fecha = ymd(dia))
 
-# 4. Obtener última compra por cliente
+# 5. Obtener el último ticket de compra por cada cliente (más reciente)
 ultimos_tickets <- tickets_filtrados %>%
   group_by(id_cliente_enc) %>%
   filter(fecha == max(fecha)) %>%
   ungroup()
 
-# 5. Historial anterior (para entrenamiento)
-historial_tickets <- anti_join(tickets_filtrados, ultimos_tickets, by = "num_ticket")
+# -------------------------------------------
+# VERIFICACIÓN DE CLIENTES Y ENTRENAMIENTO DEL MODELO
+# -------------------------------------------
 
-# 6. Agrupar historial para crear la matriz
-tickets_matriz_agrupado <- historial_tickets %>%
-  group_by(id_cliente_enc, cod_est) %>%
-  summarise(N_compras = n(), .groups = "drop")
+# 8. Verificar que los clientes objetivo estén presentes en la matriz de interacciones
+clientes_en_matriz <- intersect(obj4, rownames(matriz_reducida))
+length(clientes_en_matriz)
 
-# 7. Crear matriz de cliente-producto
-df_matriz <- pivot_wider(
-  tickets_matriz_agrupado,
-  names_from = "cod_est",
-  values_from = "N_compras",
-  values_fill = 0,
-  names_prefix = "id_"
-)
+# 10. Inicializar y entrenar modelo WRMF para recomendaciones con parámetros dados
+modelo_wrmf_o4 <- WRMF$new(rank = 10L, 
+                           lambda = 0.1, 
+                           feedback = 'implicit')
 
-# 8. Convertir a sparseMatrix
-matriz_sparse_o4 <- as(as.matrix(df_matriz[,-1]), "dgCMatrix")
-rownames(matriz_sparse_o4) <- df_matriz$id_cliente_enc
+modelo_wrmf_o4$fit_transform(matriz_reducida, 
+                             n_iter = 1000L, 
+                             convergence_tol = 1e-6)
 
-# 9. ENTRENAMIENTO CON WRMF
-modelo_wrmf_o4 <- WRMF$new(rank = 10L, lambda = 0.1, feedback = 'implicit')
-modelo_wrmf_o4$fit_transform(matriz_sparse_o4, n_iter = 1000L, convergence_tol = 1e-6)
+# -------------------------------------------
+# EXCLUSIÓN DE PRODUCTOS YA COMPRADOS RECIENTEMENTE
+# -------------------------------------------
 
-# 10. Crear matriz de productos NO recomendables (última compra)
-ultimos_tickets_bin <- ultimos_tickets %>%
-  mutate(cod_est = paste0("id_", cod_est)) %>%
-  mutate(valor = 1) %>%
-  pivot_wider(names_from = cod_est, values_from = valor, values_fill = 0) %>%
-  column_to_rownames("id_cliente_enc")
+# 11. Obtener lista de todos los productos en la matriz
+productos_matriz <- colnames(matriz_reducida)
 
-# 11. Asegurar que tenga mismas columnas y orden que matriz_sparse_o4
-columnas_faltantes <- setdiff(colnames(matriz_sparse_o4), colnames(ultimos_tickets_bin))
-ultimos_tickets_bin[, columnas_faltantes] <- 0
-ultimos_tickets_bin <- ultimos_tickets_bin[, colnames(matriz_sparse_o4)]
+# 14. Crear matriz para marcar productos que no deben recomendarse (los ya comprados últimamente)
+not_recommend_df <- matrix(0, 
+                           nrow = nrow(matriz_reducida), 
+                           ncol = ncol(matriz_reducida))
+rownames(not_recommend_df) <- rownames(matriz_reducida)
+colnames(not_recommend_df) <- productos_matriz
 
-# 12. Convertir a matriz sparse para `not_recommend`
-not_recommend_matrix <- as(as.matrix(ultimos_tickets_bin), "dgCMatrix")
+# 15. Para cada cliente, marcar con 1 los productos de su último ticket para excluirlos de recomendaciones
+for (cliente in clientes_en_matriz) {
+  # Extraer productos comprados en el último ticket del cliente
+  productos_ultimo_ticket <- ultimos_tickets %>%
+    filter(id_cliente_enc == cliente) %>%
+    pull(cod_est)
+  
+  # Mantener solo productos que están en la matriz de productos
+  productos_validos <- intersect(productos_ultimo_ticket, productos_matriz)
+  
+  if (length(productos_validos) > 0) {
+    # Marcar con 1 en la matriz de exclusión
+    not_recommend_df[cliente, productos_validos] <- 1
+    cat("Cliente", cliente, "tiene", length(productos_validos), "productos marcados como no recomendables\n")
+  } else {
+    cat("Cliente", cliente, "no tiene productos para excluir\n")
+  }
+}
 
-# 13. Predecir recomendaciones (evitando últimos productos comprados)
+# Convertir la matriz de exclusión a formato sparse
+not_recommend_matrix <- as(not_recommend_df, "dgCMatrix")
+
+# -------------------------------------------
+# GENERACIÓN DE RECOMENDACIONES
+# -------------------------------------------
+
+# 16. Predecir recomendaciones para clientes objetivo,
+# excluyendo productos comprados recientemente
 preds_o4 <- modelo_wrmf_o4$predict(
-  matriz_sparse_o4,
-  k = 1,
-  not_recommend = not_recommend_matrix
+  matriz_reducida[clientes_en_matriz, ],
+  k = 1,                                  # Solo la mejor recomendación por cliente
+  not_recommend = not_recommend_matrix[clientes_en_matriz, ]  # Productos a excluir
 )
 
-# 14. Preparar output
-clientes <- rownames(matriz_sparse_o4)
-productos_predichos <- attr(preds_o4, "ids") %>% str_remove("id_")
+# -------------------------------------------
+# PROCESAMIENTO DE RESULTADOS
+# -------------------------------------------
 
-# 15. Armar tabla final con descripciones
-recomendaciones_o4 <- data.frame(
-  id_cliente_enc = clientes,
-  cod_est = productos_predichos
-) %>%
-  left_join(maestro %>% select(cod_est, descripcion), by = "cod_est") %>%
-  select(id_cliente_enc, cod_est, descripcion)
+# Extraer ids de productos recomendados (primer recomendación) y asignar nombres de clientes
+predicciones <- as.data.frame(attr(preds_o4, "ids"))
+predicciones$clientes <- rownames(predicciones)
+rownames(predicciones) <- NULL
 
-# 16. Ver resultado
-print(recomendaciones_o4)
+# Seleccionar columnas relevantes: cliente y producto recomendado
+predicciones <- predicciones %>% 
+  select(clientes, V1)
+
+# Hacer join para obtener descripción de productos desde tabla maestro
+predicciones <- predicciones %>% 
+  left_join(maestro, by = c("V1" = "cod_est"))
+
+# Renombrar columnas para mayor claridad
+colnames(predicciones) <- c("clientes", "cod_prod", "descripcion")
