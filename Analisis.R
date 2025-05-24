@@ -4,6 +4,7 @@
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(ggrepel)
 
 #Cargar datos
 maestroestr<-readRDS("maestroestr.RDS")
@@ -44,7 +45,7 @@ tickets_enc1<- tickets_enc %>%
   arrange(desc(ArticulosPorCompra))
 
 grafico1<- ggplot(tickets_enc1, aes(x = ArticulosPorCompra)) +
-  geom_histogram(color = "lightblue4", fill = "lightblue", binwidth = 1) +
+  geom_histogram(color = "#E60026", fill = "#E60026", binwidth = 1, alpha = 0.6) +
   labs(title = "Cantidad de articulos que se llevan por compra",
        y = "Cantidad de tickets",
        x = "Articulos por ticket(compra)") +
@@ -61,8 +62,8 @@ tickets_enc2<- tickets_enc %>%
 tickets_con_nombres<- tickets_enc2 %>%
   left_join(maestroestr, by = "cod_est")
 
-grafico2<- ggplot(tickets_con_nombres, aes(x = reorder(descripcion, Cantidad), y = Cantidad)) +
-  geom_col(fill = "lightblue", color = "lightblue4") +
+grafico2<- ggplot(tickets_con_nombres, aes(x = Cantidad, y = reorder(descripcion, Cantidad))) +
+  geom_col(fill = "#E60026", color = "#E60026", alpha = 0.6) +
   labs(title = "Top 10 artículos más comprados",
        x = "Artículo",
        y = "Cantidad de veces comprado") +
@@ -77,14 +78,8 @@ tickets_enc3<- tickets_enc %>%
   mutate(duracion_dias = as.numeric(ultima_compra - primera_compra)) %>%
   arrange(desc(duracion_dias))
 
-grafico3b<- ggplot(tickets_enc3, aes(y = duracion_dias)) +
-  geom_boxplot(fill = "lightblue", , color = "lightblue4") +
-  labs(title = "Distribución del tiempo de actividad de los clientes",
-       y = "Duración entre primera y última compra (días)") +
-  theme_minimal()
-
-grafico3h<- ggplot(tickets_enc3, aes(x = duracion_dias)) +
-  geom_histogram(binwidth = 30, fill = "lightblue", color = "lightblue4") +
+grafico3<- ggplot(tickets_enc3, aes(x = duracion_dias)) +
+  geom_histogram(binwidth = 30, fill = "#E60026", color = "#E60026", alpha = 0.6) +
   labs(title = "Tiempo de actividad de los clientes",
        x = "Duración entre primera y última compra (días)",
        y = "Número de clientes") +
@@ -101,73 +96,89 @@ tickets_enc4<- tickets_enc %>%
   ungroup()
 
 grafico4b<- ggplot(tickets_enc4, aes(y = media_intervalo)) +
-  geom_boxplot(color = "lightblue4",fill = "lightblue") +
+  geom_boxplot(color = "#E60026",fill = "#E60026", alpha = 0.6) +
   labs( title = "Distribución de la frecuencia de compra de los clientes",
         y = "Días promedio entre compras") +
   coord_cartesian(ylim = c(0, 10)) + 
   theme_minimal()
 
 grafico4h<- ggplot(tickets_enc4, aes(x = media_intervalo)) +
-  geom_histogram(binwidth = 1, color = "lightblue4", fill = "lightblue") +
+  geom_histogram(binwidth = 1, color = "#E60026", fill = "#E60026", alpha = 0.6) +
   labs(title = "Media de dias entre compras por cliente",
        x = "Media de dias entre compras",
-       y = "Cantidad de clientes") +
+       y = "Frecuencia") +
   coord_cartesian(xlim = c(0, 8)) +
   theme_minimal()
 
 
 #GRAFICO 5: Días de la semana que más se compra 
-tickets_enc5<- tickets_enc %>% mutate(DiaSemana = wday(dia)) %>% group_by(DiaSemana) %>% summarise(CantidadProductos = n())
+tickets_enc5<- tickets_enc %>% mutate(DiaSemana = wday(dia, label = TRUE, abbr = FALSE, week_start = 1)) %>% group_by(DiaSemana) %>% summarise(CantidadProductos = n())
 
-tickets_enc5$DiaSemana<- factor(tickets_enc5$DiaSemana,
-                      levels = c(1, 2, 3, 4, 5, 6, 7),
-                      labels = c("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"))
+#Calcular porcentaje y etiqueta
+tickets_enc5<- tickets_enc5 %>%
+  mutate(
+    porcentaje = CantidadProductos / sum(CantidadProductos) * 100,
+    etiqueta = paste0(DiaSemana, " (", round(porcentaje, 1), "%)")
+  )
 
-grafico5<- ggplot(tickets_enc5, aes(x = CantidadProductos, y = reorder(DiaSemana, CantidadProductos))) +
-  geom_col(fill = "lightblue", color = "lightblue4") +
-  theme_minimal() +
-  labs(title = "Cantidad de productos comprados por día de la semana",
-       x = "Cantidad de Productos",
-       y = "Día de la Semana")
+grafico5<- ggplot(tickets_enc5, aes(x = "", y = CantidadProductos, fill = DiaSemana)) +
+  geom_col(color = "white") +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "Proporción de productos comprados por día de la semana") +
+  geom_label_repel(aes(label = etiqueta),
+                   position = position_stack(vjust = 0.5), 
+                   show.legend = FALSE,
+                   segment.color = "grey50", size = 4) +
+  scale_fill_manual(values = c( "#E60026","#0033A0","#80C342","#5B9BD5","#666666","#FFB900","#0072CE"))
 
 
 #GRAFICO 6: Productos más comprados por meses
-tickets_enc6<- tickets_enc %>% mutate(Mes = month(dia)) %>% group_by(Mes) %>% summarise(CantidadProductos = n())
 
-grafico6<- ggplot(tickets_enc6, aes(x = ))
+tickets_enc6<- tickets_enc %>%
+  left_join(maestroestr, by = "cod_est")
 
-#######
-library(dplyr)
-library(ggplot2)
-library(lubridate)
+#Agrupar por mes y producto
+productos_mes<- tickets_enc6 %>%
+  mutate(Mes = month(dia)) %>%
+  group_by(Mes, descripcion, id_cliente_enc) %>%
+  summarise(total = n(), .groups = "drop")
 
-#Asegurar formato de fecha
-tickets_enc<- tickets_enc %>%
-  mutate(dia = as.Date(dia),
-         Mes = month(dia, label = TRUE, abbr = FALSE))
+#Quedarse con los top 5 productos por mes
+top_productos<- productos_mes %>%
+  group_by(Mes) %>%
+  slice_max(order_by = total, n = 5)
 
-#Conteo de tickets por mes
-tickets_por_mes<- tickets_enc %>%
-  group_by(Mes, num_ticket, id_cliente_enc) %>%
-  summarise(CantidadTickets = n())
-
-#Gráfico
-grafico6<- ggplot(tickets_por_mes, aes(x = Mes, y = CantidadTickets)) +
-  geom_col(fill = "lightblue", color = "steelblue") +
+grafico6<- ggplot(top_productos, aes(x = reorder(descripcion, total), y = total, fill = descripcion)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ Mes, scales = "free_x") +
+  scale_fill_manual(values = c("#E60026", "#0033A0", "#80C342", "#5B9BD5", "#666666", "grey", "#FFB900", "#0072CE", "#C8102E", "grey3", "#A1D490", "#FFA07A", "#9ACD32", "#A0522D", "yellow4", "#4B0082")) +
+  labs(title = "Top productos más comprados por mes",
+       x = "Producto",
+       y = "Número de tickets") +
   theme_minimal() +
-  labs(title = "Cantidad de tickets por mes", x = "Mes", y = "Cantidad de Tickets")
+  coord_flip()
 
+
+#GRAFICO 7 : Evolucion de la cantidad de compras por mes
+tickets_mes<- tickets_enc %>% 
+  mutate(mes = floor_date(dia, "month")) %>%
+  count(mes)
+
+grafico7<- ggplot(tickets_mes, aes(x = mes, y = n)) +
+  geom_line(color = "#E60026", size = 1) +
+  labs(title = "Evolución mensual del número de compras",
+       x = "Mes", y = "Número de tickets") +
+  theme_minimal()
 
 
 ################## GUARDAR LOS GRAFICOS ################## 
 ggsave("Graficos/Grafico1.png", plot = grafico1, width = 8, height = 6, dpi = 300, bg = "white")
 ggsave("Graficos/Grafico2.png", plot = grafico2, width = 8, height = 6, dpi = 300, bg = "white")
-ggsave("Graficos/Grafico3b.png", plot = grafico3b, width = 8, height = 6, dpi = 300, bg = "white")
-ggsave("Graficos/Grafico3h.png", plot = grafico3h, width = 8, height = 6, dpi = 300, bg = "white")
+ggsave("Graficos/Grafico3.png", plot = grafico3, width = 8, height = 6, dpi = 300, bg = "white")
 ggsave("Graficos/Grafico4h.png", plot = grafico4h, width = 8, height = 6, dpi = 300, bg = "white")
 ggsave("Graficos/Grafico4b.png", plot = grafico4b, width = 8, height = 6, dpi = 300, bg = "white")
 ggsave("Graficos/Grafico5.png", plot = grafico5, width = 8, height = 6, dpi = 300, bg = "white")
-
-
-
+ggsave("Graficos/Grafico6.png", plot = grafico6, width = 8, height = 6, dpi = 300, bg = "white")
+ggsave("Graficos/Grafico7.png", plot = grafico7, width = 8, height = 6, dpi = 300, bg = "white")
 
