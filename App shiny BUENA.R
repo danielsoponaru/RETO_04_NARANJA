@@ -8,6 +8,7 @@ library(shiny)
 library(shinyWidgets)
 library(DT)
 library(bslib)
+library(ggrepel)
 
 #Cargar datos
 maestroestr<- readRDS("maestroestr.RDS")
@@ -15,6 +16,7 @@ objetivos<- readRDS("objetivos.RDS")
 tickets_enc<- readRDS("tickets_enc.RDS")
 clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
 matriz<- readRDS("MatrizSuperReducida.RDS")
+resultadosO2<- read.csv("Resultados/resultados_objetivo2.csv")
 
 maestroestr #codigos de productos
 tickets_enc #productos que ha adquirido cada cliente
@@ -77,12 +79,14 @@ ui<- page_navbar(
                        plotOutput(outputId = "productos_mas_frecuentes_mes")),
               tabPanel("Evolucion mensual del número de compras",
                        p("En este gráfico de lineas se ve la evolucion que han tenido las ventas de eroski durante estos tres meses."),
-                       plotOutput(outputId = "grafico_evolucion"))
+                       plotOutput(outputId = "grafico_evolucion")),
+              tabPanel("Fidelización de los clientes",
+                       p("Este gráfico mide la fidelización de los clientes, ya que no solo refleja el tiempo de actividad, sino que también la cantidad de veces que han ido a comprar durante ese tiempo."),
+                       plotOutput(outputId = "grafico_fidelizacion"))
             )),
   nav_panel("Clústeres",
-            navset_pill_list("Carácteristicas de los clústeres.",
-              selectInput(inputId = "cluster", label = "Selecciona el cluster:", choices = unique(clientes_clusterizados$kmeans_cluster), selected = 1)
-            )),
+            selectInput(inputId = "cluster", label = "Selecciona el cluster:", choices = unique(clientes_clusterizados$kmeans_cluster), selected = 1)
+            ),
   nav_panel("Modelado",
             navset_tab(
               tabPanel("topNList", 
@@ -93,20 +97,11 @@ ui<- page_navbar(
                        DTOutput(outputId = "tabla_metricas_ratings"))
             )),
   nav_panel("Resultados",
-            navset_tab(
-              tabPanel("Objetivo 1", 
-                       p("Resultados del objetivo 1."),
-                       DTOutput(outputId = "resultados_objetivo1")),
-              tabPanel("Objetivo 2", 
-                       p("Resultados del objetivo 2."),
-                       DTOutput(outputId = "resultados_objetivo2")),
-              tabPanel("Objetivo 3", 
-                       p("Resultados del objetivo 3."),
-                       DTOutput(outputId = "resultados_objetivo3")),
-              tabPanel("Objetivo 4", 
-                       p("Resultados del objetivo 4."),
-                       DTOutput(outputId = "resultados_objetivo4"))
-            ))
+            radioButtons(inputId = "objetivo", label = "Selecciona el objetivo:", choices = c("Objetivo 1", "Objetivo 2", "Objetivo 3", "Objetivo 4"), selected = "Objetivo 1"),
+            DTOutput(outputId = "resultados_objetivo1"),
+            DTOutput(outputId = "resultados_objetivo2"),
+            DTOutput(outputId = "resultados_objetivo3"),
+            DTOutput(outputId = "resultados_objetivo4"))
 )
 
 #Server
@@ -142,19 +137,19 @@ server<- function(input, output) {
   })
   
   output$actividad_clientes<- renderPlot({
-    duraciones<- tickets_enc %>%
+    tickets_enc3<- tickets_enc %>%
       group_by(id_cliente_enc) %>%
-      summarise(
-        primera_compra = min(dia),
-        ultima_compra = max(dia),
-        duracion_dias = as.numeric(ultima_compra - primera_compra),
-        .groups = "drop")
+      summarise(primera_compra = min(dia),
+                ultima_compra = max(dia)) %>%
+      mutate(duracion_dias = as.numeric(ultima_compra - primera_compra)) %>%
+      arrange(desc(duracion_dias))
     
-    ggplot(duraciones, aes(x = duracion_dias)) +
-      geom_histogram(binwidth = 30, fill = "#E60026", color = "#E60026", alpha = 0.6) +
+    ggplot(tickets_enc3, aes(x = duracion_dias)) +
+      geom_histogram(binwidth = 10, fill = "#E60026", color = "#E60026", alpha = 0.6) +
+      scale_x_continuous(breaks = seq(0, 90, by = 10)) +
       labs(title = "Tiempo de actividad de los clientes",
            x = "Duración entre primera y última compra (días)",
-           y = "Número de clientes") +
+           y = "Cantidad de clientes") +
       theme_minimal()
   })
   
@@ -235,7 +230,40 @@ server<- function(input, output) {
       theme_minimal()
     
   })
+  
+  output$grafico_fidelizacion<- renderPlot({
+    tickets_enc4<- tickets_enc %>%
+      group_by(id_cliente_enc) %>%
+      summarise(primera = min(dia),
+                ultima = max(dia),
+                n_compras = n_distinct(num_ticket)) %>%
+      mutate(duracion = as.numeric(ultima - primera))
+    
+    ggplot(tickets_enc4, aes(x = duracion, y = n_compras)) +
+      geom_point(alpha = 0.5, color = "#E60026") +
+      labs(title = "Compras vs Tiempo de Actividad de los Clientes",
+           x = "Días entre primera y última compra",
+           y = "Cantidad de compras") +
+      theme_minimal()
+  })
+  
+  tabla_seleccionada<- reactive({
+    if(input$objetivo == "Objetivo 1") {
+      df1  # Dataframe para Objetivo 1
+    } else if(input$objetivo == "Objetivo 2") {
+      resultadosO2
+    } else if(input$objetivo == "Objetivo 3") {
+      df3
+    } else {
+      df4
+    }
+  })
+  
+  output$resultados_objetivo1<- renderDT({
+    tabla_seleccionada()
+  })
 }
 
 #Ejecutar la app
 shinyApp(ui = ui, server = server)
+

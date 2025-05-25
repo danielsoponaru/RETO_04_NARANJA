@@ -40,7 +40,6 @@ dim(data)
 str(clientes_objetivo)
 summary(clientes_objetivo)
 
-sum(data == 0)/(nrow(data) * ncol(data))
 
 #3. Preparar la matriz
 
@@ -81,7 +80,8 @@ resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descri
 resultado_final
 
 
-
+##### GUARDAR LOS RESULTADOS #####
+write.csv(resultado_final, file = "Resultados/resultados_objetivo2.csv", row.names = FALSE)
 
 
 ################################################
