@@ -25,12 +25,11 @@ library(Matrix)
 library(dplyr)
 
 #1. Cargar datos
-data<- readRDS("matriz.RDS")
+data<- readRDS("MatrizSuperReducida.RDS")
 objetivos<- readRDS("objetivos.RDS")
 clientes_objetivo<- objetivos$objetivo2$obj
 productos<- readRDS("maestroestr.RDS")
 
-sum(data == 0)/(nrow(data) * ncol(data))
 
 #2. Examinar datos y tipos de columnas
 str(data)
@@ -41,6 +40,7 @@ dim(data)
 str(clientes_objetivo)
 summary(clientes_objetivo)
 
+
 #3. Preparar la matriz
 
 #Reemplazar NA con 0 (porque sparseMatrix no admite NA)
@@ -48,6 +48,10 @@ matriz<- replace(data, is.na(data), 0)
 
 #Convierte a matriz sparseMatrix
 matriz_sparse<- as(as.matrix(matriz), "sparseMatrix")
+
+matriz_sparseB<- ifelse(matriz_sparse > 0, 1, 0)
+matriz_sparse@x[matriz_sparse@x>=1]<- 1
+matriz_sparse
 
 #4. Entrenar modelo ALS
 set.seed(7)
@@ -76,22 +80,11 @@ resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descri
 resultado_final
 
 
+##### GUARDAR LOS RESULTADOS #####
+write.csv(resultado_final, file = "Resultados/resultados_objetivo2.csv", row.names = FALSE)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-#############
+################################################
 
 scores_matrix <- modelo_ALS$predict(matriz_sparse[id_usuarios, , drop = FALSE], type = "score")
 
@@ -120,3 +113,28 @@ resultado_final <- merge(resultados_con_score,
 
 resultado_final <- resultado_final[, c("cliente", "producto_recomendado", "descripcion", "score")]
 str(scores_matrix)
+
+
+
+
+###############################################
+
+# Similaridad entre usuarios
+sim_users <- similarity(as(matriz_sparse, "binaryRatingMatrix"), method = "cosine", which = "users")
+
+# Buscar usuarios similares y ver qué productos compran
+justificaciones_populares <- lapply(1:length(clientes_objetivo), function(i) {
+  idx_usuario <- id_usuarios[i]
+  cliente <- clientes_objetivo[i]
+  producto_rec <- productos_recomendados[i]
+  
+  vecinos <- order(sim_users[idx_usuario, ], decreasing = TRUE)[2:6]  # top 5 vecinos
+  compras_vecinos <- matriz_sparse[vecinos, ]
+  frecuencia <- sum(compras_vecinos[, producto_rec])
+  
+  return(data.frame(cliente = cliente,
+                    producto_recomendado = producto_rec,
+                    vecinos_con_producto = frecuencia))
+})
+popularidad_df <- do.call(rbind, justificaciones_populares)
+
