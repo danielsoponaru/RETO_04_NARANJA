@@ -1,3 +1,6 @@
+### ANALISIS EXPLORATORIO RETO 4 CON SHINY ###
+
+#Cargar librerias necesarias
 library(dplyr)
 library(lubridate)
 library(ggplot2)
@@ -12,23 +15,23 @@ library(shinyjs)
 library(viridis)
 library(waiter)
 
-# Cargar datos
-maestroestr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
-clientes_clusterizados <- readRDS("clientes_clusterizados.RDS")
-matriz <- readRDS("MatrizSuperReducida.RDS")
-resultadosO2 <- read.csv("Resultados/resultados_objetivo2.csv")
-
+#Cargar datos
+maestroestr<- readRDS("maestroestr.RDS")
+objetivos<- readRDS("objetivos.RDS")
+tickets_enc<- readRDS("tickets_enc.RDS")
+clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
+matriz<- readRDS("MatrizSuperReducida.RDS")
+resultadosO2<- read.csv("Resultados/resultados_objetivo2.csv")
+resultadosO3<- read.csv("Resultados/resultados_objetivo3.csv")
 options(scipen = 999)
 
-# Ajustar tipos de columnas
+#Ajustar tipos de columnas
 tickets_enc$dia <- ymd(tickets_enc$dia)
 tickets_enc$cod_est <- as.numeric(tickets_enc$cod_est)
 tickets_enc$id_cliente_enc <- as.character(tickets_enc$id_cliente_enc)
 maestroestr$cod_est <- as.numeric(maestroestr$cod_est)
 
-# Tema personalizado de Eroski
+#Tema personalizado de Eroski
 tema_eroski <- bs_theme(
   bg = "#FFFFFF",
   fg = "#333333",
@@ -43,7 +46,7 @@ tema_eroski <- bs_theme(
   font_scale = 1.1
 )
 
-# CSS personalizado mejorado con scroll
+#CSS personalizado mejorado con scroll
 css_personalizado <- "
 .navbar-brand {
   font-weight: bold !important;
@@ -100,7 +103,7 @@ body {
 }
 "
 
-# Funciones auxiliares para métricas
+#Funciones auxiliares para métricas
 calcular_metricas_resumen <- function() {
   total_clientes <- n_distinct(tickets_enc$id_cliente_enc)
   total_productos <- n_distinct(tickets_enc$cod_est)
@@ -115,8 +118,8 @@ calcular_metricas_resumen <- function() {
   )
 }
 
-# UI mejorada con scroll
-ui <- page_navbar(
+#UI mejorada con scroll
+ui<- page_navbar(
   title = div(
     img(src = "logo_eroski.png", 
         height = "30px", style = "margin-right: 10px;"),
@@ -218,7 +221,7 @@ ui <- page_navbar(
     )
   ),
   
-  # Panel de clústeres mejorado
+  #Panel de clústeres mejorado
   nav_panel(
     title = tags$span(icon("users"), "Análisis de Clústeres"),
     sidebarLayout(
@@ -281,7 +284,7 @@ ui <- page_navbar(
     )
   ),
   
-  # Panel de modelado mejorado
+  #Panel de modelado
   nav_panel(
     title = tags$span(icon("brain"), "Modelado y Métricas"),
     navset_card_tab(
@@ -307,7 +310,7 @@ ui <- page_navbar(
     )
   ),
   
-  # Panel de resultados mejorado
+  #Panel de resultados
   nav_panel(
     title = tags$span(icon("trophy"), "Resultados"),
     sidebarLayout(
@@ -316,8 +319,8 @@ ui <- page_navbar(
         radioGroupButtons(
           inputId = "objetivo",
           label = "Selecciona el objetivo:",
-          choices = c("Objetivo 1" = "obj1", "Objetivo 2" = "obj2", "Objetivo 3" = "obj3", "Objetivo 4" = "obj4"),
-          selected = "obj1",
+          choices = c("Objetivo 1", "Objetivo 2", "Objetivo 3", "Objetivo 4"),
+          selected = "Objetivo 1",
           status = "primary",
           direction = "vertical",
           size = "lg"
@@ -340,8 +343,8 @@ ui <- page_navbar(
   )
 )
 
-# Server mejorado
-server <- function(input, output, session) {
+#Server
+server<- function(input, output, session) {
   
   # Cargar página con animación
   waiter_show(html = spin_fading_circles(), color = "#E60026")
@@ -541,23 +544,22 @@ server <- function(input, output, session) {
   
   output$titulo_resultado <- renderText({
     titulos <- c(
-      "obj1" = "Resultados - Segmentación de Clientes",
-      "obj2" = "Resultados - Sistema de Recomendación",
-      "obj3" = "Resultados - Optimización de Inventario",
-      "obj4" = "Resultados - Análisis de Rentabilidad"
+      "Objetivo 1" = "Resultados - Articulo Promocionado",
+      "Objetivo 2" = "Resultados - Otros como tú han comprado",
+      "Objetivo 3" = "Resultados - Oferta para ti",
+      "Objetivo 4" = "Resultados - Quizás te hayas olvidado"
     )
     titulos[[input$objetivo]]
   })
   
-  # Tabla de resultados
-  output$tabla_resultados <- renderDT({
-    tabla <- switch(input$objetivo,
-                    "obj1" = data.frame(Métrica = c("Precisión", "Recall", "F1-Score"), 
+  #Tabla de resultados
+  output$tabla_resultados<- renderDT({
+    tabla<- switch(input$objetivo,
+                    "Objetivo 1" = data.frame(Métrica = c("Precisión", "Recall", "F1-Score"), 
                                         Valor = c(0.85, 0.78, 0.81)),
-                    "obj2" = if(exists("resultadosO2")) resultadosO2 else data.frame(Info = "Datos no disponibles"),
-                    "obj3" = data.frame(Producto = c("Producto A", "Producto B"), 
-                                        Demanda_Predicha = c(150, 200)),
-                    "obj4" = data.frame(Segmento = c("Premium", "Regular"), 
+                    "Objetivo 2" = resultadosO2,
+                    "Objetivo 3" = resultadosO3,
+                    "Objetivo 4" = data.frame(Segmento = c("Premium", "Regular"), 
                                         ROI = c("25%", "15%"))
     )
     
@@ -567,7 +569,7 @@ server <- function(input, output, session) {
       formatStyle(columns = colnames(tabla), backgroundColor = '#f8f9fa')
   })
   
-  # Tablas de métricas de modelado
+  #Tablas de métricas de modelado
   output$tabla_metricas_topNList <- renderDT({
     datos_ejemplo <- data.frame(
       Algoritmo = c("UBCF", "IBCF", "Popular", "Random"),
