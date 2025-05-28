@@ -7,7 +7,7 @@ library(dplyr)
 # 1. Cargar datos
 data <- readRDS("MatrizSuperReducida.RDS")
 objetivos <- readRDS("objetivos.RDS")
-clientes_objetivo <- objetivos$objetivo2$obj
+clientes_objetivo <- objetivos$objetivo3$obj
 productos <- readRDS("maestroestr.RDS")
 
 #  Vector con los códigos de los 20 productos en oferta (reemplaza con los reales si hace falta)
@@ -94,8 +94,7 @@ print(ct)
 ##### GUARDAR LOS RESULTADOS #####
 write.csv(ct, file = "Resultados/resultados_objetivo3.csv", row.names = FALSE)
 
-# ----------------------------------------------------------
-# 9. EVALUACIÓN DEL MODELO ALS (Feedback Implícito)
-# ----------------------------------------------------------
+
+
 
 
