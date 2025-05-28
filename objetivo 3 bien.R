@@ -5,7 +5,7 @@ library(Matrix)
 library(dplyr)
 
 # 1. Cargar datos
-data <- readRDS("matriz.RDS")
+data <- readRDS("MatrizSuperReducida.RDS")
 objetivos <- readRDS("objetivos.RDS")
 clientes_objetivo <- objetivos$objetivo3$obj
 productos <- readRDS("maestroestr.RDS")
@@ -85,11 +85,14 @@ resultado_final <- resultado_final[, c("cliente", "producto_recomendado", "descr
 # Ver resumen de recomendaciones
 ct <- resultado_final %>%
   group_by(descripcion) %>%
-  count()
+  summarise(cantidad = n()) %>% 
+  arrange(desc(cantidad))
 
 # Mostrar tabla resumen
 print(ct)
 
+##### GUARDAR LOS RESULTADOS #####
+write.csv(ct, file = "Resultados/resultados_objetivo3.csv", row.names = FALSE)
 
 
 
