@@ -7,7 +7,7 @@ library(dplyr)
 # 1. Cargar datos
 data <- readRDS("MatrizSuperReducida.RDS")
 objetivos <- readRDS("objetivos.RDS")
-clientes_objetivo <- objetivos$objetivo3$obj
+clientes_objetivo <- objetivos$objetivo2$obj
 productos <- readRDS("maestroestr.RDS")
 
 #  Vector con los códigos de los 20 productos en oferta (reemplaza con los reales si hace falta)
