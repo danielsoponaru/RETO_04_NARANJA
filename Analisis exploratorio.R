@@ -5,6 +5,7 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(ggrepel)
+library(tidyr)
 
 #Cargar datos
 maestroestr<-readRDS("maestroestr.RDS")

@@ -14,6 +14,7 @@ library(shinydashboard)
 library(shinyjs)
 library(viridis)
 library(waiter)
+library(tidyr)
 
 #Cargar datos
 maestroestr<- readRDS("maestroestr.RDS")
@@ -21,9 +22,14 @@ objetivos<- readRDS("objetivos.RDS")
 tickets_enc<- readRDS("tickets_enc.RDS")
 clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
 matriz<- readRDS("MatrizSuperReducida.RDS")
+resultadosO1<- read.csv("Resultados/resultados_objetivo1.csv")
 resultadosO2<- read.csv("Resultados/resultados_objetivo2.csv")
 resultadosO3<- read.csv("Resultados/resultados_objetivo3.csv")
 resultadosO4<- read.csv("Resultados/resultados_objetivo4.csv")
+metricasRatings<- read.csv("Comparacion de algoritmos/metricasRatings.csv")
+metricasTopN<- read.csv("Comparacion de algoritmos/metricasTopN.csv")
+
+
 options(scipen = 999)
 
 #Ajustar tipos de columnas
@@ -49,15 +55,6 @@ paleta_eroski<- bs_theme(
 
 #CSS personalizado
 css_personalizado<- "
-.navbar-brand {
-  font-weight: bold !important;
-  font-size: 1.5rem !important;
-}
-.card {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  border-radius: 10px;
-  margin-bottom: 20px;
-}
 .metric-card {
   background: linear-gradient(135deg, #E60026, #C8102E);
   color: white;
@@ -105,12 +102,11 @@ body {
 "
 
 #Funciones auxiliares para métricas
-calcular_metricas_resumen <- function() {
-  total_clientes <- n_distinct(tickets_enc$id_cliente_enc)
-  total_productos <- n_distinct(tickets_enc$cod_est)
-  total_tickets <- n_distinct(tickets_enc$num_ticket)
-  periodo_analisis <- paste(min(tickets_enc$dia), "a", max(tickets_enc$dia))
-  
+calcular_estadisticos_principales<- function() {
+  total_clientes<- n_distinct(tickets_enc$id_cliente_enc)
+  total_productos<- n_distinct(tickets_enc$cod_est)
+  total_tickets<- n_distinct(tickets_enc$num_ticket)
+  periodo_analisis<- paste(min(tickets_enc$dia), "a", max(tickets_enc$dia))
   list(
     clientes = total_clientes,
     productos = total_productos,
@@ -119,12 +115,13 @@ calcular_metricas_resumen <- function() {
   )
 }
 
+
 #Definir la ui
 ui<- page_navbar(
   title = div(
     img(src = "logo_eroski.png", 
         height = "30px", style = "margin-right: 10px;"),
-    "Eroski - Reto 04"
+    strong("Eroski - Reto 04")
   ),
   theme = paleta_eroski,
   useShinyjs(),
@@ -222,7 +219,7 @@ ui<- page_navbar(
     )
   ),
   
-  #Panel de clústeres mejorado
+  #Panel de clústeres
   nav_panel(
     title = tags$span(icon("users"), "Análisis de Clústeres"),
     sidebarLayout(
@@ -292,20 +289,15 @@ ui<- page_navbar(
       nav_panel("Evaluación TopNList",
                 card(
                   card_header("Métricas de Evaluación - TopNList"),
-                  DTOutput("tabla_metricas_topNList")
+                  DTOutput("tabla_metricas_topNList"),
+                  plotOutput("grafico_metricas_topNList")
                 )
       ),
       nav_panel("Evaluación Ratings",
                 card(
                   card_header("Métricas de Evaluación - Ratings"),
-                  DTOutput("tabla_metricas_ratings")
-                )
-      ),
-      nav_panel("Matriz de Recomendación",
-                card(
-                  card_header("Visualización de la Matriz"),
-                  p("Análisis de la matriz de recomendación utilizada en el modelo."),
-                  verbatimTextOutput("info_matriz")
+                  DTOutput("tabla_metricas_ratings"),
+                  plotOutput("grafico_metricas_ratings")
                 )
       )
     )
@@ -347,20 +339,21 @@ ui<- page_navbar(
 #Server
 server<- function(input, output, session) {
   
-  # Cargar página con animación
+  #Cargar página con animación
   waiter_show(html = spin_fading_circles(), color = "#E60026")
   Sys.sleep(1)
   waiter_hide()
   
-  # Métricas del dashboard principal
-  metricas <- calcular_metricas_resumen()
+  
+  #Estadisticos del dashboard principal
+  metricas<- calcular_metricas_resumen()
   
   output$total_clientes <- renderText({ format(metricas$clientes, big.mark = ",") })
   output$total_productos <- renderText({ format(metricas$productos, big.mark = ",") })
   output$total_tickets <- renderText({ format(metricas$tickets, big.mark = ",") })
   output$periodo_analisis <- renderText({ metricas$periodo })
   
-  #Gráficos principales mejorados con plotly
+  #Graficos del analisis explporatorio
   output$cantidad_articulos <- renderPlot({
     tickets_enc %>% 
       group_by(num_ticket, id_cliente_enc) %>% 
@@ -423,10 +416,10 @@ server<- function(input, output, session) {
       theme_minimal()
   })
   
-  output$dias_semana <- renderPlot({
-    tickets_encF <- tickets_enc %>% mutate(DiaSemana = wday(dia, label = TRUE, abbr = FALSE, week_start = 1)) %>% group_by(DiaSemana) %>% summarise(CantidadProductos = n())
+  output$dias_semana<- renderPlot({
+    tickets_encF<- tickets_enc %>% mutate(DiaSemana = wday(dia, label = TRUE, abbr = FALSE, week_start = 1)) %>% group_by(DiaSemana) %>% summarise(CantidadProductos = n())
     
-    tickets_encF2 <- tickets_encF %>%
+    tickets_encF2<- tickets_encF %>%
       mutate(
         porcentaje = CantidadProductos / sum(CantidadProductos) * 100,
         etiqueta = paste0(DiaSemana, " (", round(porcentaje, 1), "%)")
@@ -444,16 +437,16 @@ server<- function(input, output, session) {
       scale_fill_manual(values = c( "#E60026","#0033A0","#80C342","#5B9BD5","#666666","#FFB900","#0072CE"))
   })
   
-  output$productos_mas_frecuentes_mes <- renderPlot({
-    tickets_enc6 <- tickets_enc %>%
+  output$productos_mas_frecuentes_mes<- renderPlot({
+    tickets_enc6<- tickets_enc %>%
       left_join(maestroestr, by = "cod_est")
     
-    productos_mes <- tickets_enc6 %>%
+    productos_mes<- tickets_enc6 %>%
       mutate(Mes = month(dia, label = TRUE)) %>%
       group_by(Mes, descripcion, id_cliente_enc) %>%
       summarise(total = n(), .groups = "drop")
     
-    top_productos <- productos_mes %>%
+    top_productos<- productos_mes %>%
       group_by(Mes) %>%
       slice_max(order_by = total, n = 5)
     
@@ -470,7 +463,7 @@ server<- function(input, output, session) {
       coord_flip()
   })
   
-  output$grafico_evolucion <- renderPlot({
+  output$grafico_evolucion<- renderPlot({
     tickets_mes <- tickets_enc %>% 
       mutate(mes = floor_date(dia, "day")) %>%
       count(mes)
@@ -482,7 +475,7 @@ server<- function(input, output, session) {
       theme_minimal()
   })
   
-  output$grafico_fidelizacion <- renderPlot({
+  output$grafico_fidelizacion<- renderPlot({
     tickets_enc4 <- tickets_enc %>%
       group_by(id_cliente_enc) %>%
       summarise(primera = min(dia),
@@ -497,6 +490,7 @@ server<- function(input, output, session) {
            y = "Cantidad de compras") +
       theme_minimal()
   })
+  
   
   #Análisis de clústeres
   output$cluster_size <- renderText({
@@ -520,16 +514,6 @@ server<- function(input, output, session) {
     }
   })
   
-  #Información de la matriz
-  output$info_matriz<- renderText({
-    if(exists("matriz")) {
-      paste("Dimensiones de la matriz:", paste(dim(matriz), collapse = " x "),
-            "\nTipo de objeto:", class(matriz)[1],
-            "\nMemoria utilizada:", format(object.size(matriz), units = "Mb"))
-    } else {
-      "Matriz no disponible"
-    }
-  })
   
   #Descripciones de objetivos
   output$descripcion_objetivo<- renderText({
@@ -552,11 +536,10 @@ server<- function(input, output, session) {
     titulos[[input$objetivo]]
   })
   
-  #Tabla de resultados
+  #Tabla de resultados de objetivos
   output$tabla_resultados<- renderDT({
     tabla<- switch(input$objetivo,
-                   "Objetivo 1" = data.frame(Métrica = c("Precisión", "Recall", "F1-Score"), 
-                                             Valor = c(0.85, 0.78, 0.81)),
+                   "Objetivo 1" = resultadosO1,
                    "Objetivo 2" = resultadosO2,
                    "Objetivo 3" = resultadosO3,
                    "Objetivo 4" = resultadosO4
@@ -570,31 +553,58 @@ server<- function(input, output, session) {
   
   #Tablas de métricas de modelado
   output$tabla_metricas_topNList<- renderDT({
-    datos_ejemplo <- data.frame(
-      Algoritmo = c("UBCF", "IBCF", "Popular", "Random"),
-      Precision = c(0.15, 0.12, 0.08, 0.02),
-      Recall = c(0.25, 0.20, 0.15, 0.05),
-      F1 = c(0.19, 0.15, 0.11, 0.03)
-    )
-    
-    datatable(datos_ejemplo, 
+    datatable(metricasTopN, 
               options = list(pageLength = 10, dom = 'tip'),
               class = 'cell-border stripe') %>%
-      formatRound(columns = c('Precision', 'Recall', 'F1'), digits = 3)
+      formatRound(columns = c("Precision", "Recall", "TPR", "FPR"), digits = 3)
   })
   
-  output$tabla_metricas_ratings <- renderDT({
-    datos_ejemplo <- data.frame(
-      Algoritmo = c("SVD", "NMF", "Baseline", "KNN"),
-      RMSE = c(0.95, 1.02, 1.15, 1.08),
-      MAE = c(0.75, 0.82, 0.89, 0.85)
-    )
-    
-    datatable(datos_ejemplo,
+  output$tabla_metricas_ratings<- renderDT({
+    datatable(metricasRatings,
               options = list(pageLength = 10, dom = 'tip'),
               class = 'cell-border stripe') %>%
-      formatRound(columns = c('RMSE', 'MAE'), digits = 3)
+      formatRound(columns = c("RMSE", "MAE", "MSE"), digits = 3)
   })
+  
+  output$grafico_metricas_topNList<- renderPlot({
+    metricasTopN_larga<- pivot_longer(metricasTopN,
+                                      cols = c("Precision", "Recall", "TPR", "FPR"),
+                                      names_to = "Metrica",
+                                      values_to = "Valor")
+    
+    ggplot(metricasTopN_larga, aes(x = Modelo, y = Valor, fill = Metrica)) +
+      geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+      labs(title = paste("Evaluación de modelos por métricas (Top 10)"),
+           y = "Valor de la métrica",
+           x = "Modelo",
+           fill = "Métrica") +
+      theme_minimal(base_size = 14) +
+      scale_fill_manual(values = c("Precision" = "#E60026",
+                                   "Recall" = "#0033A0",
+                                   "TPR" = "#80C342",
+                                   "FPR" = "#FFB900")) +
+      theme(legend.position = "top")
+    
+  })
+  
+  output$grafico_metricas_ratings<- renderPlot({
+    metricasRatings_larga<- pivot_longer(metricasRatings,
+                                         cols = c("RMSE", "MAE", "MSE"),
+                                         names_to = "Metrica",
+                                         values_to = "Valor")
+    
+    ggplot(metricasRatings_larga, aes(x = Modelo, y = Valor, fill = Metrica)) +
+      geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+      scale_y_log10() +  # Escala logarítmica
+      labs(title = "Comparación de errores por modelo (Ratings)",
+           y = "Valor del error (escala logarítmica)",
+           x = "Modelo",
+           fill = "Métrica") +
+      theme_minimal(base_size = 14) +
+      scale_fill_manual(values = c("RMSE" = "#E60026", "MAE" = "#0033A0", "MSE" = "#80C342")) +
+      theme(legend.position = "top")
+  })
+  
 }
 
 #Ejecutar la aplicación
