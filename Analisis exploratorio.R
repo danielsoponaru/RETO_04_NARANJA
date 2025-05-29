@@ -65,8 +65,8 @@ tickets_con_nombres<- tickets_enc2 %>%
 grafico2<- ggplot(tickets_con_nombres, aes(x = Cantidad, y = reorder(descripcion, Cantidad))) +
   geom_col(fill = "#E60026", color = "#E60026", alpha = 0.6) +
   labs(title = "Top 10 artículos más comprados",
-       x = "Artículo",
-       y = "Cantidad de veces comprado") +
+       x = "Cantidad de veces comprado",
+       y = "Artículo") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -147,7 +147,7 @@ grafico6<- ggplot(tickets_enc6, aes(x = "", y = CantidadProductos, fill = DiaSem
                    position = position_stack(vjust = 0.5), 
                    show.legend = FALSE,
                    segment.color = "grey50", size = 4) +
-  scale_fill_manual(values = c( "#E60026","#0033A0","#80C342","#5B9BD5","#666666","#FFB900","#0072CE"))
+  scale_fill_manual(values = c("#E60026","#0033A0","#80C342","#5B9BD5","#666666","#FFB900","#0072CE"))
 
 
 #GRAFICO 7: Productos más comprados por meses
@@ -178,7 +178,7 @@ grafico7<- ggplot(top_productos, aes(x = reorder(descripcion, total), y = total,
 
 #GRAFICO 8 : Evolucion de la cantidad de compras por mes
 tickets_mes<- tickets_enc %>% 
-  mutate(mes = floor_date(dia, "month")) %>%
+  mutate(mes = floor_date(dia, "day")) %>%
   count(mes)
 
 grafico8<- ggplot(tickets_mes, aes(x = mes, y = n)) +

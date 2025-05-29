@@ -23,6 +23,7 @@ clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
 matriz<- readRDS("MatrizSuperReducida.RDS")
 resultadosO2<- read.csv("Resultados/resultados_objetivo2.csv")
 resultadosO3<- read.csv("Resultados/resultados_objetivo3.csv")
+resultadosO4<- read.csv("Resultados/resultados_objetivo4.csv")
 options(scipen = 999)
 
 #Ajustar tipos de columnas
@@ -31,8 +32,8 @@ tickets_enc$cod_est <- as.numeric(tickets_enc$cod_est)
 tickets_enc$id_cliente_enc <- as.character(tickets_enc$id_cliente_enc)
 maestroestr$cod_est <- as.numeric(maestroestr$cod_est)
 
-#Tema personalizado de Eroski
-tema_eroski <- bs_theme(
+#Paleta de colores personalizada de Eroski
+paleta_eroski<- bs_theme(
   bg = "#FFFFFF",
   fg = "#333333",
   primary = "#E60026",
@@ -46,8 +47,8 @@ tema_eroski <- bs_theme(
   font_scale = 1.1
 )
 
-#CSS personalizado mejorado con scroll
-css_personalizado <- "
+#CSS personalizado
+css_personalizado<- "
 .navbar-brand {
   font-weight: bold !important;
   font-size: 1.5rem !important;
@@ -118,14 +119,14 @@ calcular_metricas_resumen <- function() {
   )
 }
 
-#UI mejorada con scroll
+#Definir la ui
 ui<- page_navbar(
   title = div(
     img(src = "logo_eroski.png", 
         height = "30px", style = "margin-right: 10px;"),
     "Eroski - Reto 04"
   ),
-  theme = tema_eroski,
+  theme = paleta_eroski,
   useShinyjs(),
   tags$head(tags$style(HTML(css_personalizado))),
   
@@ -176,7 +177,7 @@ ui<- page_navbar(
       
       div(
         h3("Frecuencia de Compra", style = "color: #E60026; margin-top: 30px;"),
-        p("Este gráfico muestra con que frecuencia compran los clientes de media. Es decir cuantos días pasan de media entre compra y compra."),
+        p("Este boxplot muestra la distribucion de la frecuencia de compra de los clientes. Es decir cuantos días pasan de media entre compra y compra."),
         card(
           style = "margin-bottom: 30px;",
           plotOutput("frecuencia_de_compra", height = "450px")
@@ -359,7 +360,7 @@ server<- function(input, output, session) {
   output$total_tickets <- renderText({ format(metricas$tickets, big.mark = ",") })
   output$periodo_analisis <- renderText({ metricas$periodo })
   
-  # Gráficos principales mejorados con plotly
+  #Gráficos principales mejorados con plotly
   output$cantidad_articulos <- renderPlot({
     tickets_enc %>% 
       group_by(num_ticket, id_cliente_enc) %>% 
@@ -383,8 +384,8 @@ server<- function(input, output, session) {
     ggplot(top_articulos, aes(x = Cantidad, y = reorder(descripcion, Cantidad))) +
       geom_col(fill = "#E60026", color = "#E60026", alpha = 0.6) +
       labs(title = "Top 10 artículos más comprados",
-           x = "Artículo",
-           y = "Cantidad de veces comprado") +
+           x = "Cantidad de veces comprado",
+           y = "Artículo") +
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
@@ -407,19 +408,18 @@ server<- function(input, output, session) {
   })
   
   output$frecuencia_de_compra <- renderPlot({
-    intervalos <- tickets_enc %>%
+    intervalos<- tickets_enc %>%
       arrange(id_cliente_enc, dia) %>%
       group_by(id_cliente_enc) %>%
       mutate(intervalo = as.numeric(difftime(dia, lag(dia), units = "days"))) %>%
       filter(!is.na(intervalo)) %>%
       summarise(media_intervalo = mean(intervalo), .groups = "drop")
     
-    ggplot(intervalos, aes(x = media_intervalo)) +
-      geom_histogram(binwidth = 1, color = "#E60026", fill = "#E60026", alpha = 0.6) +
-      labs(title = "Media de días entre compras por cliente",
-           x = "Media de días entre compras",
-           y = "Cantidad de clientes") +
-      coord_cartesian(xlim = c(0, 8)) +
+    ggplot(intervalos, aes(y = media_intervalo)) +
+      geom_boxplot(color = "#E60026",fill = "#E60026", alpha = 0.6) +
+      labs( title = "Distribución de la frecuencia de compra de los clientes",
+            y = "Días promedio entre compras") +
+      coord_cartesian(ylim = c(0, 10)) + 
       theme_minimal()
   })
   
@@ -472,7 +472,7 @@ server<- function(input, output, session) {
   
   output$grafico_evolucion <- renderPlot({
     tickets_mes <- tickets_enc %>% 
-      mutate(mes = floor_date(dia, "month")) %>%
+      mutate(mes = floor_date(dia, "day")) %>%
       count(mes)
     
     ggplot(tickets_mes, aes(x = mes, y = n)) +
@@ -498,7 +498,7 @@ server<- function(input, output, session) {
       theme_minimal()
   })
   
-  # Análisis de clústeres
+  #Análisis de clústeres
   output$cluster_size <- renderText({
     if(input$cluster != "") {
       size <- clientes_clusterizados %>%
@@ -520,8 +520,8 @@ server<- function(input, output, session) {
     }
   })
   
-  # Información de la matriz
-  output$info_matriz <- renderText({
+  #Información de la matriz
+  output$info_matriz<- renderText({
     if(exists("matriz")) {
       paste("Dimensiones de la matriz:", paste(dim(matriz), collapse = " x "),
             "\nTipo de objeto:", class(matriz)[1],
@@ -531,18 +531,18 @@ server<- function(input, output, session) {
     }
   })
   
-  # Descripciones de objetivos
-  output$descripcion_objetivo <- renderText({
-    descripciones <- c(
-      "obj1" = "Análisis de segmentación de clientes y patrones de comportamiento.",
-      "obj2" = "Sistema de recomendación personalizada basado en historial de compras.",
-      "obj3" = "Optimización de inventario y predicción de demanda.",
-      "obj4" = "Análisis de rentabilidad y estrategias de marketing dirigido."
+  #Descripciones de objetivos
+  output$descripcion_objetivo<- renderText({
+    descripciones<- c(
+      "obj1" = "Artículo promocionado",
+      "obj2" = "Otros como tú han comprado",
+      "obj3" = "Oferta para ti",
+      "obj4" = "Quizás te hayas olvidado"
     )
     descripciones[[input$objetivo]]
   })
   
-  output$titulo_resultado <- renderText({
+  output$titulo_resultado<- renderText({
     titulos <- c(
       "Objetivo 1" = "Resultados - Articulo Promocionado",
       "Objetivo 2" = "Resultados - Otros como tú han comprado",
@@ -555,12 +555,11 @@ server<- function(input, output, session) {
   #Tabla de resultados
   output$tabla_resultados<- renderDT({
     tabla<- switch(input$objetivo,
-                    "Objetivo 1" = data.frame(Métrica = c("Precisión", "Recall", "F1-Score"), 
-                                        Valor = c(0.85, 0.78, 0.81)),
-                    "Objetivo 2" = resultadosO2,
-                    "Objetivo 3" = resultadosO3,
-                    "Objetivo 4" = data.frame(Segmento = c("Premium", "Regular"), 
-                                        ROI = c("25%", "15%"))
+                   "Objetivo 1" = data.frame(Métrica = c("Precisión", "Recall", "F1-Score"), 
+                                             Valor = c(0.85, 0.78, 0.81)),
+                   "Objetivo 2" = resultadosO2,
+                   "Objetivo 3" = resultadosO3,
+                   "Objetivo 4" = resultadosO4
     )
     
     datatable(tabla, 
@@ -570,7 +569,7 @@ server<- function(input, output, session) {
   })
   
   #Tablas de métricas de modelado
-  output$tabla_metricas_topNList <- renderDT({
+  output$tabla_metricas_topNList<- renderDT({
     datos_ejemplo <- data.frame(
       Algoritmo = c("UBCF", "IBCF", "Popular", "Random"),
       Precision = c(0.15, 0.12, 0.08, 0.02),
