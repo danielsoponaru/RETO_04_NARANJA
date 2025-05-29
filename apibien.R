@@ -24,7 +24,7 @@ function(cliente_id) {
   }
   
   user_idx <- which(rownames(matriz_sparse) == cliente_id)
-  user_scores <- modelo_ALS$predict(matriz_sparse[user_idx, , drop = FALSE], type = "score")
+  user_scores <- modelo_ALS$predict(matriz_sparse[user_idx, , drop = FALSE], k = ncol(matriz_sparse), type = "score")
   user_compras <- matriz_sparse[user_idx, ]
   user_scores[user_compras > 0] <- -Inf
   
