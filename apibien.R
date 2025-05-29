@@ -1,4 +1,3 @@
-# plumber.R
 
 library(plumber)
 library(Matrix)
