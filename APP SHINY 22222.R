@@ -28,15 +28,26 @@ resultadosO3<- read.csv("Resultados/resultados_objetivo3.csv")
 resultadosO4<- read.csv("Resultados/resultados_objetivo4.csv")
 metricasRatings<- read.csv("Comparacion de algoritmos/metricasRatings.csv")
 metricasTopN<- read.csv("Comparacion de algoritmos/metricasTopN.csv")
-
+summary_tabla<- read.csv("estadisticosClusteres.csv")
+colnames(summary_tabla)<- c(
+  "Cluster",
+  "Número de clientes",
+  "Productos totales por cliente",
+  "Variedad de productos",
+  "Días activos promedio",
+  "Compras por semana",
+  "Compras entre semana",
+  "Compras fin de semana",
+  "% compras en fin de semana"
+)
 
 options(scipen = 999)
 
 #Ajustar tipos de columnas
-tickets_enc$dia <- ymd(tickets_enc$dia)
-tickets_enc$cod_est <- as.numeric(tickets_enc$cod_est)
-tickets_enc$id_cliente_enc <- as.character(tickets_enc$id_cliente_enc)
-maestroestr$cod_est <- as.numeric(maestroestr$cod_est)
+tickets_enc$dia<- ymd(tickets_enc$dia)
+tickets_enc$cod_est<- as.numeric(tickets_enc$cod_est)
+tickets_enc$id_cliente_enc<- as.character(tickets_enc$id_cliente_enc)
+maestroestr$cod_est<- as.numeric(maestroestr$cod_est)
 
 #Paleta de colores personalizada de Eroski
 paleta_eroski<- bs_theme(
@@ -70,6 +81,15 @@ css_personalizado<- "
   border-radius: 8px;
   margin: 10px 0;
 }
+.info-note {
+  background-color: #f8f9fa;
+  border-left: 4px solid #E60026;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 5px;
+  font-style: italic;
+  color: #666666;
+}
 /* Asegurar scroll vertical en toda la aplicación */
 body {
   overflow-y: auto !important;
@@ -101,7 +121,7 @@ body {
 }
 "
 
-#Funciones auxiliares para métricas
+#Funciones auxiliares para estadisticos principales de la base de datos
 calcular_estadisticos_principales<- function() {
   total_clientes<- n_distinct(tickets_enc$id_cliente_enc)
   total_productos<- n_distinct(tickets_enc$cod_est)
@@ -123,7 +143,7 @@ ui<- page_navbar(
   useShinyjs(),
   tags$head(tags$style(HTML(css_personalizado))),
   
-  #Panel de análisis exploratorio mejorado con scroll
+  #Panel de análisis exploratorio
   nav_panel(
     title = tags$span(icon("magnifying-glass-chart"), "Análisis Exploratorio"),
     #Contenedor principal con scroll
@@ -140,7 +160,7 @@ ui<- page_navbar(
       ),
       br(),
       
-      # Gráficos en layout vertical con cards individuales para mejor scroll
+      #Gráficos en layout vertical
       div(
         h3("Análisis de Productos por Compra", style = "color: #E60026; margin-top: 30px;"),
         p("Este histograma refleja la cantidad de articulos que los clientes se suelen llevar por compra."),
@@ -215,63 +235,70 @@ ui<- page_navbar(
     )
   ),
   
-  #Panel de clústeres
+  #Panel de clústeres MODIFICADO
   nav_panel(
     title = tags$span(icon("users"), "Análisis de Clústeres"),
-    sidebarLayout(
-      sidebarPanel(
-        width = 3,
-        selectizeInput(
-          inputId = "cluster",
-          label = "Selecciona el clúster:",
-          choices = sort(unique(clientes_clusterizados$kmeans_cluster)),
-          selected = 1,
-          options = list(
-            placeholder = "Elige un clúster...",
-            onInitialize = I('function() { this.setValue(""); }')
+    navset_card_tab(
+      
+      #Página principal con características generales
+      nav_panel(
+        title = "Características Generales",
+        div(
+          style = "padding: 20px;",
+          h3("Características Generales de los Clústeres", style = "color: #E60026; margin-bottom: 20px;"),
+          p("Este gráfico muestra las principales características que definen cada cluster de clientes."),
+          card(
+            card_header("Comparación de Características por Cluster"),
+            plotOutput("grafico_clusters_general", height = "500px")
           )
-        ),
-        br(),
-        div(class = "cluster-info",
-            h4("Información del Clúster"),
-            textOutput("cluster_size"),
-            br(),
-            textOutput("cluster_description")
         )
       ),
-      mainPanel(
-        width = 9,
-        conditionalPanel(
-          condition = "input.cluster != ''",
-          fluidRow(
-            column(6, 
-                   card(
-                     card_header("Productos Favoritos del Clúster"),
-                     plotlyOutput("cluster_productos")
-                   )
-            ),
-            column(6,
-                   card(
-                     card_header("Comportamiento de Compra"),
-                     plotlyOutput("cluster_comportamiento")
-                   )
-            )
-          ),
-          fluidRow(
-            column(12,
-                   card(
-                     card_header("Clientes del Clúster"),
-                     DTOutput("cluster_clientes")
-                   )
-            )
-          )
-        ),
-        conditionalPanel(
-          condition = "input.cluster == ''",
+      
+      #Pestañas individuales para cada cluster
+      nav_panel(
+        title = "Cluster 1",
+        div(
+          style = "padding: 20px;",
           div(
-            style = "text-align: center; margin-top: 100px;",
-            icon("info-circle", style = "font-size: 48px; color: #E60026;"),
-            h3("Selecciona un clúster para ver el análisis detallado", style = "color: #666;")
+            class = "cluster-info",
+            h4("Cluster 1 - Clientes muy activos y fieles"),
+            textOutput("descripcion_cluster1")
+          ),
+          card(
+            card_header("Estadísticas Detalladas - Cluster 1"),
+            DTOutput("tabla_cluster1")
+          )
+        )
+      ),
+      
+      nav_panel(
+        title = "Cluster 2", 
+        div(
+          style = "padding: 20px;",
+          div(
+            class = "cluster-info",
+            h4("Cluster 2 - Clientes regulares y equilibrados"),
+            textOutput("descripcion_cluster2")
+          ),
+          card(
+            card_header("Estadísticas Detalladas - Cluster 2"),
+            DTOutput("tabla_cluster2")
+          )
+        )
+      ),
+      
+      nav_panel(
+        title = "Cluster 3",
+        div(
+          style = "padding: 20px;",
+          div(
+            class = "cluster-info", 
+            h4("Cluster 3 - Clientes ocasionales pero concentrados"),
+            textOutput("descripcion_cluster3")
+          ),
+          card(
+            card_header("Estadísticas Detalladas - Cluster 3"),
+            DTOutput("tabla_cluster3")
           )
         )
       )
@@ -299,7 +326,7 @@ ui<- page_navbar(
     )
   ),
   
-  #Panel de resultados
+  #Panel de resultados - CON NOTA AÑADIDA
   nav_panel(
     title = tags$span(icon("trophy"), "Resultados"),
     sidebarLayout(
@@ -314,11 +341,11 @@ ui<- page_navbar(
           direction = "vertical",
           size = "lg"
         ),
-        br(),
+        # Nota añadida aquí
         div(
-          style = "background: #f8f9fa; padding: 15px; border-radius: 8px;",
-          h5("Descripción del Objetivo"),
-          textOutput("descripcion_objetivo")
+          class = "info-note",
+          icon("info-circle"),
+          " Consultar el anexo del informe para más detalles de los resultados."
         )
       ),
       mainPanel(
@@ -342,7 +369,7 @@ server<- function(input, output, session) {
   
   
   #Estadisticos del dashboard principal
-  metricas<- calcular_metricas_resumen()
+  metricas<- calcular_estadisticos_principales()
   
   output$total_clientes <- renderText({ format(metricas$clientes, big.mark = ",") })
   output$total_productos <- renderText({ format(metricas$productos, big.mark = ",") })
@@ -488,38 +515,89 @@ server<- function(input, output, session) {
   })
   
   
-  #Análisis de clústeres
-  output$cluster_size <- renderText({
-    if(input$cluster != "") {
-      size <- clientes_clusterizados %>%
-        filter(kmeans_cluster == input$cluster) %>%
-        nrow()
-      paste("Tamaño del clúster:", format(size, big.mark = ","), "clientes")
-    }
+  #Panel de clusteres
+  
+  #Gráfico general de comparación de clusters
+  output$grafico_clusters_general <- renderPlot({
+    matriz_df<- matriz %>%
+      as.data.frame() %>%
+      mutate(id_cliente_enc = rownames(.))
+    
+    tickets_enc<- tickets_enc %>%
+      mutate(
+        num_ticket = as.character(num_ticket),
+        dia = ymd(dia),
+        num_ticket = paste(num_ticket, id_cliente_enc),
+        DiaSemana = wday(dia, week_start = 1)
+      )
+    
+    datos_clientes<- tickets_enc %>%
+      group_by(id_cliente_enc) %>%
+      summarise(
+        total_productos        = n(),
+        productos_distintos    = n_distinct(cod_est),
+        dias_activos           = as.numeric(max(dia) - min(dia)),
+        compras_por_semana     = ifelse(dias_activos > 0, n() / (dias_activos / 7), n()),
+        compras_entre_semana   = sum(DiaSemana %in% 1:5),
+        compras_fin_de_semana  = sum(DiaSemana %in% 6:7)
+      ) %>%
+      ungroup()
+    
+    matriz_con_cluster<- matriz_df %>%
+      inner_join(clientes_clusterizados, by = "id_cliente_enc") %>%
+      left_join(datos_clientes, by = "id_cliente_enc")
+    
+    variables<- c("total_productos", "productos_distintos", "dias_activos", 
+                  "compras_por_semana", "compras_entre_semana", "compras_fin_de_semana")
+    
+    promedios_long<- matriz_con_cluster %>%
+      group_by(kmeans_cluster) %>%
+      summarise(across(all_of(variables), ~mean(.x, na.rm = TRUE))) %>%
+      pivot_longer(-kmeans_cluster, names_to = "variable", values_to = "valor")
+    
+    ggplot(promedios_long, aes(x = variable, y = valor, fill = kmeans_cluster)) +
+      geom_col(position = "dodge") +
+      coord_flip() +
+      labs(
+        title = "Promedio de Variables por Cluster",
+        x = "Variable",
+        y = "Valor Promedio"
+      ) +
+      scale_fill_manual(values = c("#E60026", "#0033A0", "#80C342")) +
+      theme_minimal()
+    
   })
   
-  output$cluster_description <- renderText({
-    descripciones <- c(
-      "1" = "Clientes ocasionales con baja frecuencia de compra",
-      "2" = "Clientes regulares con comportamiento estándar",
-      "3" = "Clientes frecuentes con alta fidelidad",
-      "4" = "Clientes premium con alto valor de compra"
-    )
-    if(input$cluster != "" && input$cluster %in% names(descripciones)) {
-      descripciones[[input$cluster]]
-    }
+  #Descripciones de clusters
+  output$descripcion_cluster1 <- renderText({
+    paste(
+      "Este grupo representa a los clientes más intensos, con un alto número de productos comprados y gran diversidad. Compran con mucha frecuencia y son muy activos a lo largo del tiempo, aunque principalmente entre semana. Son clientes fieles y de gran valor para Eroski.",
+      "Total de clientes:",summary_tabla[1,2])
   })
   
+  output$descripcion_cluster2 <- renderText({
+    paste(
+      "Formado por consumidores con una actividad moderada, tanto en variedad como en frecuencia de compra. Compran regularmente durante el año y combinan sus compras entre semana y fines de semana. Representan un segmento estable y predecible.",
+      "Total de clientes:", summary_tabla[2,2])
+  })
   
-  #Descripciones de objetivos
-  output$descripcion_objetivo<- renderText({
-    descripciones<- c(
-      "obj1" = "Artículo promocionado",
-      "obj2" = "Otros como tú han comprado",
-      "obj3" = "Oferta para ti",
-      "obj4" = "Quizás te hayas olvidado"
-    )
-    descripciones[[input$objetivo]]
+  output$descripcion_cluster3 <- renderText({
+    paste(
+      "Este grupo es el más pequeño y menos activo en términos de días de compra, pero con una frecuencia semanal relativamente alta. Compran menos productos y variedad, pero lo hacen de forma más intensiva en periodos cortos. Podrían representar oportunidades puntuales o compradores estacionales.",
+      "Total de clientes:", summary_tabla[3,2])
+  })
+  
+  #Tablas detalladas por cluster
+  output$tabla_cluster1<- renderDT({
+    summary_tabla %>% filter(Cluster == 1)
+  })
+  
+  output$tabla_cluster2<- renderDT({
+    summary_tabla %>% filter(Cluster == 2)
+  })
+  
+  output$tabla_cluster3<- renderDT({
+    summary_tabla %>% filter(Cluster == 3)
   })
   
   output$titulo_resultado<- renderText({
@@ -532,7 +610,7 @@ server<- function(input, output, session) {
     titulos[[input$objetivo]]
   })
   
-  #Tabla de resultados de objetivos
+  #Tabla de resultados de objetivos  
   output$tabla_resultados<- renderDT({
     tabla<- switch(input$objetivo,
                    "Objetivo 1" = resultadosO1,
@@ -552,14 +630,14 @@ server<- function(input, output, session) {
     datatable(metricasTopN, 
               options = list(pageLength = 10, dom = 'tip'),
               class = 'cell-border stripe') %>%
-      formatRound(columns = c("Precision", "Recall", "TPR", "FPR"), digits = 3)
+      formatRound(columns = c("Precision", "Recall", "TPR", "FPR"), digits = 4)
   })
   
   output$tabla_metricas_ratings<- renderDT({
     datatable(metricasRatings,
               options = list(pageLength = 10, dom = 'tip'),
               class = 'cell-border stripe') %>%
-      formatRound(columns = c("RMSE", "MAE", "MSE"), digits = 3)
+      formatRound(columns = c("RMSE", "MAE", "MSE"), digits = 4)
   })
   
   output$grafico_metricas_topNList<- renderPlot({
@@ -591,7 +669,7 @@ server<- function(input, output, session) {
     
     ggplot(metricasRatings_larga, aes(x = Modelo, y = Valor, fill = Metrica)) +
       geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
-      scale_y_log10() +  # Escala logarítmica
+      scale_y_log10() + 
       labs(title = "Comparación de errores por modelo (Ratings)",
            y = "Valor del error (escala logarítmica)",
            x = "Modelo",

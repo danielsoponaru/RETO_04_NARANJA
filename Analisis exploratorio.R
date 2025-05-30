@@ -152,16 +152,17 @@ grafico6<- ggplot(tickets_enc6, aes(x = "", y = CantidadProductos, fill = DiaSem
 
 
 #GRAFICO 7: Productos más comprados por meses
+tickets_enc7<- tickets_enc %>% mutate(DiaSemana = wday(dia, label = TRUE, abbr = FALSE, week_start = 1)) %>% group_by(DiaSemana) %>% summarise(CantidadProductos = n())
+
+#Calcular porcentaje y etiqueta
 tickets_enc7<- tickets_enc %>%
   left_join(maestroestr, by = "cod_est")
 
-#Agrupar por mes y producto
 productos_mes<- tickets_enc7 %>%
-  mutate(Mes = month(dia)) %>%
+  mutate(Mes = month(dia, label = TRUE)) %>%
   group_by(Mes, descripcion, id_cliente_enc) %>%
   summarise(total = n(), .groups = "drop")
 
-#Quedarse con los top 5 productos por mes
 top_productos<- productos_mes %>%
   group_by(Mes) %>%
   slice_max(order_by = total, n = 5)
@@ -169,13 +170,14 @@ top_productos<- productos_mes %>%
 grafico7<- ggplot(top_productos, aes(x = reorder(descripcion, total), y = total, fill = descripcion)) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ Mes, scales = "free_x") +
-  scale_fill_manual(values = c("#E60026", "#0033A0", "#80C342", "#5B9BD5", "#666666", "grey", "#FFB900", "#0072CE", "#C8102E", "grey3", "#A1D490", "#FFA07A", "#9ACD32", "#A0522D", "yellow4", "#4B0082")) +
+  scale_fill_manual(values = c("#E60026", "#0033A0", "#80C342", "#5B9BD5", "#666666",
+                               "grey", "#FFB900", "#0072CE", "#C8102E", "grey3",
+                               "#A1D490", "#FFA07A", "#9ACD32", "#A0522D", "yellow4", "#4B0082")) +
   labs(title = "Top productos más comprados por mes",
        x = "Producto",
        y = "Número de tickets") +
   theme_minimal() +
   coord_flip()
-
 
 #GRAFICO 8 : Evolucion de la cantidad de compras por mes
 tickets_mes<- tickets_enc %>% 
