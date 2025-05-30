@@ -2,7 +2,7 @@
 # MATE RETO 4 #
 ###############
 
-interacciones <- readRDS("C:/Users/helen/OneDrive/Escritorio/R4 GitHub/RETO_04_NARANJA/matriz.RDS")
+interacciones <- readRDS("Datos/Transformados/MatrizSuperReducida.RDS")
 
 library(Matrix)     
 library(tidyverse)

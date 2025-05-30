@@ -29,9 +29,9 @@ library(ggrepel)
 library(tidyr)
 
 #Cargar datos
-maestroestr<-readRDS("maestroestr.RDS")
-objetivos<-readRDS("objetivos.RDS")
-tickets_enc<-readRDS("tickets_enc.RDS")
+maestroestr<-readRDS("Datos/Originales/maestroestr.RDS")
+objetivos<-readRDS("Datos/Originales/objetivos.RDS")
+tickets_enc<-readRDS("Datos/Originales/tickets_enc.RDS")
 
 maestroestr #codigos de productos
 tickets_enc #productos que ha adquirido cada cliente

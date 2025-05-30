@@ -16,9 +16,9 @@ library(tidyr)
 library(recommenderlab)
 
 # Cargar datos
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
+maestrostr <- readRDS("Datos/Originales/maestroestr.RDS")
+objetivos <- readRDS("Datos/Originales/objetivos.RDS")
+tickets_enc <- readRDS("Datos/Originales/tickets_enc.RDS")
 
 # Enriquecer tickets
 tickets_enc <- tickets_enc %>%
@@ -115,5 +115,5 @@ matriz_df <- as.data.frame(matriz)
 # Ver las primeras filas
 head(matriz_df)
 
-saveRDS(matriz_df, "MatrizSuperReducida.RDS")
+saveRDS(matriz_df, "Datos/Transformados/MatrizSuperReducida.RDS")
 

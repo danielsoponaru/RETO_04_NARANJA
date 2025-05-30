@@ -1,3 +1,18 @@
+if(!requireNamespace("plumber", quietly = TRUE)) {
+  install.packages("plumber")
+}
+
+if(!requireNamespace("Matrix", quietly = TRUE)) {
+  install.packages("Matrix")
+}
+
+if(!requireNamespace("rsparse", quietly = TRUE)) {
+  install.packages("rsparse")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
 
 library(plumber)
 library(Matrix)
@@ -5,10 +20,11 @@ library(rsparse)
 library(dplyr)
 
 # Cargar modelo y datos
-modelo_ALS <- readRDS("modelo_als.rds")
-matriz_sparse <- readRDS("matriz_sparse.rds")
-clientes_objetivo <- readRDS("clientes_objetivo.rds")
-productos <- readRDS("productos.rds")
+
+modelo_ALS <- readRDS("API/modelo_als.rds")
+matriz_sparse <- readRDS("API/matriz_sparse.rds")
+clientes_objetivo <- readRDS("API/clientes_objetivo.rds")
+productos <- readRDS("API/productos.rds")
 
 #* @apiTitle API de Recomendación ALS
 
@@ -42,3 +58,7 @@ function(cliente_id) {
   )
 }
 
+
+getwd()
+setwd("C:/Users/Uxue Duran Nuño/OneDrive - Mondragon Unibertsitatea/Casos Prácticos I/Reto 4/retoGit/RETO_04_NARANJA")
+plumb("API/apibien.R")$run()

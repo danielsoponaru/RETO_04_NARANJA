@@ -74,18 +74,18 @@ library(waiter)
 library(tidyr)
 
 #Cargar datos
-maestroestr<- readRDS("maestroestr.RDS")
-objetivos<- readRDS("objetivos.RDS")
-tickets_enc<- readRDS("tickets_enc.RDS")
-clientes_clusterizados<- readRDS("clientes_clusterizados.RDS")
-matriz<- readRDS("MatrizSuperReducida.RDS")
+maestroestr<- readRDS("Datos/Originales/maestroestr.RDS")
+objetivos<- readRDS("Datos/Originales/objetivos.RDS")
+tickets_enc<- readRDS("Datos/Originales/tickets_enc.RDS")
+clientes_clusterizados<- readRDS("Datos/Transformados/clientes_clusterizados.RDS")
+matriz<- readRDS("Datos/Transformados/MatrizSuperReducida.RDS")
 resultadosO1<- read.csv("Resultados/resultados_objetivo1.csv")
 resultadosO2<- read.csv("Resultados/resultados_objetivo2.csv")
 resultadosO3<- read.csv("Resultados/resultados_objetivo3.csv")
 resultadosO4<- read.csv("Resultados/resultados_objetivo4.csv")
 metricasRatings<- read.csv("Comparacion de algoritmos/metricasRatings.csv")
 metricasTopN<- read.csv("Comparacion de algoritmos/metricasTopN.csv")
-summary_tabla<- read.csv("estadisticosClusteres.csv")
+summary_tabla<- read.csv("Clusterización/estadisticosClusteres.csv")
 colnames(summary_tabla)<- c(
   "Cluster",
   "Número de clientes",
