@@ -46,9 +46,9 @@ library(recosystem)
 # ===============================
 # 2. Carga y preprocesamiento de datos
 # ===============================
-maestrostr <- readRDS("maestroestr.RDS")
-objetivos  <- readRDS("objetivos.RDS")
-tickets_enc <- readRDS("tickets_enc.RDS")
+maestrostr <- readRDS("Datos/originales/maestroestr.RDS")
+objetivos  <- readRDS("Datos/originales/objetivos.RDS")
+tickets_enc <- readRDS("Datos/originales/tickets_enc.RDS")
 
 # Formateo inicial
 tickets_enc <- tickets_enc %>%
@@ -141,12 +141,12 @@ ggplot(datos_sin_outliers, aes(x = pca1, y = pca2, color = kmeans_cluster)) +
 # 6. Guardar asignación de clusters
 # ===============================
 clientes_clusterizados <- datos_sin_outliers %>% select(id_cliente_enc, kmeans_cluster)
-saveRDS(clientes_clusterizados, "clientes_clusterizados.RDS")
+saveRDS(clientes_clusterizados, "Datos/Transformados/clientes_clusterizados.RDS")
 
 # ===============================
 # 7. Crear matriz unificada con clusters
 # ===============================
-matriz_base <- readRDS("matriz.RDS")
+matriz_base <- readRDS("Datos/Transformados/MatrizSuperReducida.RDS")
 matriz_df   <- matriz_base %>%
   as.data.frame() %>%
   mutate(id_cliente_enc = rownames(.))

@@ -37,9 +37,9 @@ library(readr)
 # 2. Cargar datos
 # ===============
 # Datos originales necesarios para reconstruir las variables
-tickets_enc <- readRDS("tickets_enc.RDS")
-clientes_clusterizados <- readRDS("clientes_clusterizados.RDS")
-matriz_base <- readRDS("MatrizSuperReducida.RDS")
+tickets_enc <- readRDS("Datos/Originales/tickets_enc.RDS")
+clientes_clusterizados <- readRDS("Datos/Transformados/clientes_clusterizados.RDS")
+matriz_base <- readRDS("Datos/Transformados/MatrizSuperReducida.RDS")
 
 # ==============================
 # 3. Preprocesamiento de tickets
@@ -100,7 +100,7 @@ summary_tabla <- matriz_con_cluster %>%
   )
 
 print(summary_tabla)
-write.csv(summary_tabla, file = "estadisticosClusteres.csv", row.names = FALSE)
+write.csv(summary_tabla, file = "Clusterización/estadisticosClusteres.csv", row.names = FALSE)
 
 # ========================
 # 7. Boxplots por variable
