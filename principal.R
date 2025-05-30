@@ -11,35 +11,78 @@ rm(list=ls())
 
 #-----------------------------------------------------
 
+
 #Reduccion de datos
 
 {
-  source('reduccion de datos.R')
+  source('Reduccion/reduccion de datos.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
+
+#Comparacion de algoritmos
+
+{
+  source('Comparacion de algoritmos/Comparacion de algoritmos.R')
   rm(list= setdiff(ls(),lsf.str()))
 }
 
 
 #Objetivo 1
 
+{
+  source('Objetivos/Objetivo 1.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
 
 
 #Objetivo 2
 
+{
+  source('Objetivos/Objetivo 2.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
 
 
 #Objetivo 3
 
+{
+  source('Objetivos/Objetivo 3.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
 
 
 #Objetivo 4
+
+{
+  source('Objetivos/Objetivo 4.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
 
 
 #Desarrollo de api en plumber
 
 {
-  source('API/api.R')
+  source('API/API.R')
   rm(list= setdiff(ls(),lsf.str()))
 }
+
+
+#App shiny
+
+{
+  source('App Shiny/APP SHINY.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
+
+#Mate
+
+{
+  source('Mate/Mate.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
 
 
 #Limpiar entorno
