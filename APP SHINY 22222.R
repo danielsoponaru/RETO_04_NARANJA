@@ -118,24 +118,20 @@ calcular_estadisticos_principales<- function() {
 
 #Definir la ui
 ui<- page_navbar(
-  title = div(
-    img(src = "logo_eroski.png", 
-        height = "30px", style = "margin-right: 10px;"),
-    strong("Eroski - Reto 04")
-  ),
+  title = strong("Eroski - Reto 04"),
   theme = paleta_eroski,
   useShinyjs(),
   tags$head(tags$style(HTML(css_personalizado))),
   
-  # Panel de análisis exploratorio mejorado con scroll
+  #Panel de análisis exploratorio mejorado con scroll
   nav_panel(
     title = tags$span(icon("magnifying-glass-chart"), "Análisis Exploratorio"),
-    # Contenedor principal con scroll
+    #Contenedor principal con scroll
     div(
       class = "main-container",
       style = "padding: 20px; overflow-y: auto;",
       
-      # Métricas principales integradas
+      #Métricas principales integradas
       fluidRow(
         column(3, div(class = "metric-card", h4("Clientes Únicos"), h2(textOutput("total_clientes")))),
         column(3, div(class = "metric-card", h4("Productos"), h2(textOutput("total_productos")))),
