@@ -97,7 +97,7 @@ rm(list=ls())
 #Desarrollo de api en plumber
 
 {
-  source('API/API.R')
+  source('API.R')
   rm(list= setdiff(ls(),lsf.str()))
 }
 
