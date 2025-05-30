@@ -65,76 +65,35 @@ id_usuarios<- match(clientes_objetivo, rownames(matriz))
 predicciones<- modelo_ALS$predict(matriz_sparse[id_usuarios, , drop = FALSE], k = 1)
 productos_recomendados<- colnames(matriz)[predicciones]
 
-#Resultado
-resultado<- data.frame(cliente = clientes_objetivo,
-                       producto_recomendado = productos_recomendados)
 
-#Asignar el nombre del producto
-resultado$producto_recomendado<- sub("^X", "", resultado$producto_recomendado)
-resultado_final<- merge(resultado,
-                         productos,
-                         by.x = "producto_recomendado",
-                         by.y = "cod_est",
-                         all.x = TRUE)
-resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descripcion")]
-resultado_final
+#7. Añadir el score de recomendación para justificar el resultado
 
-
-##### GUARDAR LOS RESULTADOS #####
-write.csv(resultado_final, file = "Resultados/resultados_objetivo2.csv", row.names = FALSE)
-
-
-################################################
-
-scores_matrix <- modelo_ALS$predict(matriz_sparse[id_usuarios, , drop = FALSE], type = "score")
-
-resultados_con_score <- data.frame(cliente = clientes_objetivo,
-                                   producto_recomendado = character(length(clientes_objetivo)),
-                                   score = numeric(length(clientes_objetivo)),
-                                   stringsAsFactors = FALSE)
-
-for (i in seq_along(id_usuarios)) {
-  user_idx <- id_usuarios[i]
-  user_scores <- scores_matrix[i, ]
-  user_compras <- matriz_sparse[user_idx, ]
-  user_scores[user_compras > 0]<- -Inf
-  best_product_idx <- which.max(user_scores)
-  resultados_con_score$producto_recomendado[i] <- colnames(matriz_sparse)[best_product_idx]
-  resultados_con_score$score[i] <- user_scores[best_product_idx]
-}
-
-resultados_con_score$producto_recomendado <- sub("^X", "", resultados_con_score$producto_recomendado)
-
-resultado_final <- merge(resultados_con_score,
-                         productos,
-                         by.x = "producto_recomendado",
-                         by.y = "cod_est",
-                         all.x = TRUE)
-
-resultado_final <- resultado_final[, c("cliente", "producto_recomendado", "descripcion", "score")]
-str(scores_matrix)
-
-
-
-
-###############################################
-
-# Similaridad entre usuarios
-sim_users <- similarity(as(matriz_sparse, "binaryRatingMatrix"), method = "cosine", which = "users")
-
-# Buscar usuarios similares y ver qué productos compran
-justificaciones_populares <- lapply(1:length(clientes_objetivo), function(i) {
-  idx_usuario <- id_usuarios[i]
-  cliente <- clientes_objetivo[i]
-  producto_rec <- productos_recomendados[i]
+#Obtener el score para cada producto recomendado para cada cliente
+scores_recomendados<- sapply(1:length(id_usuarios), function(i) {
+  usuario <- id_usuarios[i]
+  producto <- predicciones[i]
   
-  vecinos <- order(sim_users[idx_usuario, ], decreasing = TRUE)[2:6]  # top 5 vecinos
-  compras_vecinos <- matriz_sparse[vecinos, ]
-  frecuencia <- sum(compras_vecinos[, producto_rec])
-  
-  return(data.frame(cliente = cliente,
-                    producto_recomendado = producto_rec,
-                    vecinos_con_producto = frecuencia))
+  #La función predict permite pasar un solo usuario y producto para obtener el score
+  score<- modelo_ALS$predict(matriz_sparse[usuario, , drop = FALSE], k = 1, items = producto)
+  return(score)
 })
-popularidad_df <- do.call(rbind, justificaciones_populares)
 
+#Construir data.frame con cliente, producto y score
+resultado<- data.frame(
+  cliente = clientes_objetivo,
+  producto_recomendado = sub("^X", "", productos_recomendados),
+  score = round(as.numeric(scores_recomendados), 4)
+)
+
+#Añadir la descripción del producto
+resultado_final<- merge(resultado, productos,
+                         by.x = "producto_recomendado",
+                         by.y = "cod_est",
+                         all.x = TRUE)
+
+resultado_final<- resultado_final[, c("cliente", "producto_recomendado", "descripcion", "score")]
+
+print(resultado_final)
+
+#Guardar los resultados
+write.csv(resultado_final, "Resultados/resultados_objetivo2.csv", row.names = FALSE)
