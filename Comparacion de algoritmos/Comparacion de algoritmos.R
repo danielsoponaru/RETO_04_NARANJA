@@ -30,7 +30,7 @@ library(ggplot2)
 library(tidyr)
 
 #Cargar matriz de datos
-data<- readRDS("MatrizSuperReducida.RDS")
+data<- readRDS("Datos/Transformados/MatrizSuperReducida.RDS")
 
 #Examinar datos
 str(data)
