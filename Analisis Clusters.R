@@ -14,7 +14,7 @@ library(readr)
 # Datos originales necesarios para reconstruir las variables
 tickets_enc <- readRDS("tickets_enc.RDS")
 clientes_clusterizados <- readRDS("clientes_clusterizados.RDS")
-matriz_base <- readRDS("matriz.RDS")
+matriz_base <- readRDS("MatrizSuperReducida.RDS")
 
 # ==============================
 # 3. Preprocesamiento de tickets
@@ -75,6 +75,7 @@ summary_tabla <- matriz_con_cluster %>%
   )
 
 print(summary_tabla)
+write.csv(summary_tabla, file = "estadisticosClusteres.csv", row.names = FALSE)
 
 # ========================
 # 7. Boxplots por variable
@@ -103,7 +104,7 @@ promedios_long <- matriz_con_cluster %>%
   summarise(across(all_of(variables), ~mean(.x, na.rm = TRUE))) %>%
   pivot_longer(-kmeans_cluster, names_to = "variable", values_to = "valor")
 
-ggplot(promedios_long, aes(x = variable, y = valor, fill = kmeans_cluster)) +
+graficoCluster<- ggplot(promedios_long, aes(x = variable, y = valor, fill = kmeans_cluster)) +
   geom_col(position = "dodge") +
   coord_flip() +
   labs(
@@ -111,7 +112,11 @@ ggplot(promedios_long, aes(x = variable, y = valor, fill = kmeans_cluster)) +
     x = "Variable",
     y = "Valor Promedio"
   ) +
+  scale_fill_manual(values = c("#E60026", "#0033A0", "#80C342")) +
   theme_minimal()
+
+#Guardar el grafoico
+ggsave("Graficos/GraficoClusters.png", plot = graficoCluster, width = 8, height = 6, dpi = 300, bg = "white")
 
 # =======================================
 # 9. Correlaciones dentro de cada cluster
