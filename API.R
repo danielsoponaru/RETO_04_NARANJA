@@ -21,10 +21,10 @@ library(dplyr)
 
 # Cargar modelo y datos
 
-modelo_ALS <- readRDS("API/modelo_als.rds")
-matriz_sparse <- readRDS("API/matriz_sparse.rds")
-clientes_objetivo <- readRDS("API/clientes_objetivo.rds")
-productos <- readRDS("API/productos.rds")
+modelo_ALS <- readRDS("modelo_als.rds")
+matriz_sparse <- readRDS("matriz_sparse.rds")
+clientes_objetivo <- readRDS("clientes_objetivo.rds")
+productos <- readRDS("productos.rds")
 
 #* @apiTitle API de Recomendación ALS
 

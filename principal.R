@@ -6,16 +6,50 @@ if(!requireNamespace("fmsb", quietly = TRUE)) {
 
 library(fmsb)
 
+
 #Limpiar entorno
 rm(list=ls())
 
+
 #-----------------------------------------------------
+
+
+#Analisis exploratorio
+
+{
+  source('Analisis exploratorio/Analisis exploratorio.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
 
 
 #Reduccion de datos
 
 {
   source('Reduccion/reduccion de datos.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
+
+#Clusterizacion
+
+{
+  source('Clusterización/Clusterizacion.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
+
+#Analisis clusters
+
+{
+  source('Clusterización/Analisis Clusters.R')
+  rm(list= setdiff(ls(),lsf.str()))
+}
+
+
+#Graficos Clusters
+
+{
+  source('Clusterización/Graficos Clusters.R')
   rm(list= setdiff(ls(),lsf.str()))
 }
 
@@ -74,15 +108,6 @@ rm(list=ls())
   source('App Shiny/APP SHINY.R')
   rm(list= setdiff(ls(),lsf.str()))
 }
-
-
-#Mate
-
-{
-  source('Mate/Mate.R')
-  rm(list= setdiff(ls(),lsf.str()))
-}
-
 
 
 #Limpiar entorno

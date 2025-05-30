@@ -16,9 +16,9 @@ library(lubridate)
 
 options(scipen=999)
 
-clientes_clus=readRDS("clientes_clusterizados.RDS")
-tickets_enc<-readRDS("tickets_enc.RDS")
-maestroestr<-readRDS("maestroestr.RDS")
+clientes_clus=readRDS("Datos/Transformados/clientes_clusterizados.RDS")
+tickets_enc<-readRDS("Datos/Originales/tickets_enc.RDS")
+maestroestr<-readRDS("Datos/Originales/maestroestr.RDS")
 
 tickets_enc$dia<- ymd(tickets_enc$dia)
 tickets_enc$cod_est<- as.numeric(tickets_enc$cod_est)
@@ -55,7 +55,7 @@ grafico2 <- grafico_articulos_por_cluster(cluster2, 2)
 grafico3 <- grafico_articulos_por_cluster(cluster3, 3)
 
 
-w############
+############
 # GRAFICO 2
 
 grafico_top_articulos <- function(datos, titulo = "Top 10 artículos más comprados", fill_color = "lightblue", border_color = "lightblue4") {

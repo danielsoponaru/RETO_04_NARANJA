@@ -99,7 +99,7 @@ print(resultado_final)
 write.csv(resultado_final, "Resultados/resultados_objetivo2.csv", row.names = FALSE)
 
 #Guardar cosas extra para la api
-saveRDS(modelo_ALS, "API/modelo_als.rds")
-saveRDS(matriz_sparse, "API/matriz_sparse.rds")
-saveRDS(clientes_objetivo, "API/clientes_objetivo.rds")
-saveRDS(productos, "API/productos.rds")
+saveRDS(modelo_ALS, "modelo_als.rds")
+saveRDS(matriz_sparse, "matriz_sparse.rds")
+saveRDS(clientes_objetivo, "clientes_objetivo.rds")
+saveRDS(productos, "productos.rds")
