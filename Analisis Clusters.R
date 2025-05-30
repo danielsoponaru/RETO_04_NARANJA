@@ -1,3 +1,28 @@
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
+if(!requireNamespace("GGally", quietly = TRUE)) {
+  install.packages("GGally")
+}
+
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("readr", quietly = TRUE)) {
+  install.packages("readr")
+}
+
+
 # =======================
 # 1. Librerías necesarias
 # =======================

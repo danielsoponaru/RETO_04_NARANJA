@@ -2,6 +2,27 @@
 # CARGA DE LIBRERÍAS Y DATOS
 # -------------------------------------------
 
+if(!requireNamespace("tidyverse", quietly = TRUE)) {
+  install.packages("tidyverse")
+}
+
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("rsparse", quietly = TRUE)) {
+  install.packages("rsparse")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("Matrix", quietly = TRUE)) {
+  install.packages("Matrix")
+}
+
+
 library(tidyverse)
 library(lubridate)
 library(rsparse)
