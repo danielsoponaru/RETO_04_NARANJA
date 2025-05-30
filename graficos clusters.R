@@ -1,3 +1,15 @@
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
 library(dplyr)
 library(ggplot2)
 library(lubridate)

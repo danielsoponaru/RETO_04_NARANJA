@@ -1,3 +1,21 @@
+# Instalar librerias necesarias
+if(!requireNamespace("recommenderlab", quietly = TRUE)) {
+  install.packages("recommenderlab")
+}
+
+if(!requireNamespace("rsparse", quietly = TRUE)) {
+  install.packages("rsparse")
+}
+
+if(!requireNamespace("Matrix", quietly = TRUE)) {
+  install.packages("Matrix")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+
 # Cargar librerías necesarias
 library(recommenderlab)
 library(rsparse)

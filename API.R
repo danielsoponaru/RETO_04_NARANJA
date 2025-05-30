@@ -1,3 +1,11 @@
+if(!requireNamespace("plumber", quietly = TRUE)) {
+  install.packages("plumber")
+}
+
+if(!requireNamespace("recommenderlab", quietly = TRUE)) {
+  install.packages("recommenderlab")
+}
+
 library(plumber)
 library(recommenderlab)
 

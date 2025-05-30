@@ -1,5 +1,62 @@
 ### ANALISIS EXPLORATORIO RETO 4 CON SHINY ###
 
+#Instalar librarias si es necesario
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+if(!requireNamespace("shiny", quietly = TRUE)) {
+  install.packages("shiny")
+}
+
+if(!requireNamespace("shinyWidgets", quietly = TRUE)) {
+  install.packages("shinyWidgets")
+}
+
+if(!requireNamespace("DT", quietly = TRUE)) {
+  install.packages("DT")
+}
+
+if(!requireNamespace("bslib", quietly = TRUE)) {
+  install.packages("bslib")
+}
+
+if(!requireNamespace("ggrepel", quietly = TRUE)) {
+  install.packages("ggrepel")
+}
+
+if(!requireNamespace("plotly", quietly = TRUE)) {
+  install.packages("plotly")
+}
+
+if(!requireNamespace("shinydashboard", quietly = TRUE)) {
+  install.packages("shinydashboard")
+}
+
+if(!requireNamespace("shinyjs", quietly = TRUE)) {
+  install.packages("shinyjs")
+}
+
+if(!requireNamespace("viridis", quietly = TRUE)) {
+  install.packages("viridis")
+}
+
+if(!requireNamespace("waiter", quietly = TRUE)) {
+  install.packages("waiter")
+}
+
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
 #Cargar librerias necesarias
 library(dplyr)
 library(lubridate)

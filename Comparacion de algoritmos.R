@@ -1,5 +1,27 @@
 ### COMPARACION DE ALGORITMOS, RETO 04 ###
 
+#Instalar librerias si es necesario
+if(!requireNamespace("recommenderlab", quietly = TRUE)) {
+  install.packages("recommenderlab")
+}
+
+if(!requireNamespace("rsparse", quietly = TRUE)) {
+  install.packages("rsparse")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
+
 #Cargar librerias necesarias
 library(recommenderlab)
 library(rsparse)

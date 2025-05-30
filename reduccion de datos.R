@@ -1,3 +1,16 @@
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
++
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
+if(!requireNamespace("recommenderlab", quietly = TRUE)) {
+  install.packages("recommenderlab")
+}
+
+
 library(dplyr)
 library(tidyr)
 library(recommenderlab)

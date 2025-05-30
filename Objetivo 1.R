@@ -1,10 +1,36 @@
+#Instalar librerias
+if(!requireNamespace("stringr", quietly = TRUE)) {
+  install.packages("stringr")
+}
+
+if(!requireNamespace("rsparse", quietly = TRUE)) {
+  install.packages("rsparse")
+}
+
+if(!requireNamespace("recommenderlab", quietly = TRUE)) {
+  install.packages("recommenderlab")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
+#Cargar librerias
 library(stringr)
 library(rsparse)
 library(recommenderlab)
 library(dplyr)
 library(lubridate)
 library(tidyr)
-library(stringr)
+
 objetivos <- readRDS("objetivos.RDS")
 matriz_reducida <- readRDS("MatrizSuperReducida.RDS")
 maestro <- readRDS("maestroestr.RDS")

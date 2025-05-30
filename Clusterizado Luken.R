@@ -1,6 +1,38 @@
-  #================================
-  # 1. Librerías necesarias
-  # ===============================
+if(!requireNamespace("lubridate", quietly = TRUE)) {
+  install.packages("lubridate")
+}
+
+if(!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+if(!requireNamespace("naniar", quietly = TRUE)) {
+  install.packages("naniar")
+}
+
+if(!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+
+if(!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+if(!requireNamespace("purrr", quietly = TRUE)) {
+  install.packages("purrr")
+}
+
+if(!requireNamespace("cluster", quietly = TRUE)) {
+  install.packages("cluster")
+}
+
+if(!requireNamespace("recosystem", quietly = TRUE)) {
+  install.packages("recosystem")
+}
+
+#================================
+# 1. Librerías necesarias
+# ===============================
 library(lubridate)
 library(dplyr)
 library(naniar)
