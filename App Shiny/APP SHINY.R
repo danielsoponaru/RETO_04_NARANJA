@@ -116,8 +116,6 @@ paleta_eroski<- bs_theme(
   info = "#5B9BD5",
   warning = "#FFB900",
   danger = "#C8102E",
-  base_font = font_google("Open Sans"),
-  heading_font = font_google("Montserrat"),
   font_scale = 1.1
 )
 
